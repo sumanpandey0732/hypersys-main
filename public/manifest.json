@@ -1,0 +1,19 @@
+{
+  "name": "HyperSYS AI",
+  "short_name": "HyperSYS",
+  "description": "Intelligent AI assistant for coding, learning, and real-time web search",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0f1a",
+  "theme_color": "#14b8a6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"]
+}
