@@ -148,22 +148,20 @@ function friendlyHttpError(status: number, providerLabel: string): string {
   return `The model responded with an error (${status}).`;
 }
 
+const NVIDIA_PROXY_URL = "/api/nvidia";
+
 async function generateNvidiaResponse(
   messages: ChatMessage[],
   modelId: string,
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ) {
-  const key = apiKey();
-  if (!key) throw new Error("VITE_NVIDIA_API_KEY is missing");
-
   const model = NVIDIA_MODELS[modelId] || DEFAULT_CHAT_MODEL;
 
-  const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+  const response = await fetch(NVIDIA_PROXY_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
       model,
@@ -179,7 +177,7 @@ async function generateNvidiaResponse(
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
     console.error("NVIDIA API error:", response.status, errText);
-    throw new Error(friendlyHttpError(response.status, "NVIDIA API key"));
+    throw new Error(friendlyHttpError(response.status, "NVIDIA proxy"));
   }
 
   await pumpOpenAiStream(response, onChunk);

@@ -19,6 +19,11 @@ service cloud.firestore {
       return isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
+    function ownsConversation(conversationId) {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/conversations/$(conversationId)).data.userId == request.auth.uid;
+    }
+
     match /conversations/{conversationId} {
       allow read, delete: if ownsExisting();
       allow create: if ownsIncoming();
@@ -27,9 +32,9 @@ service cloud.firestore {
     }
 
     match /messages/{messageId} {
-      allow read, delete: if ownsExisting();
-      allow create: if ownsIncoming();
-      allow update: if ownsExisting() && ownsIncoming();
+      allow read, delete: if isSignedIn() && ownsConversation(resource.data.conversationId);
+      allow create: if ownsIncoming() && ownsConversation(request.resource.data.conversationId);
+      allow update: if ownsExisting() && ownsIncoming() && ownsConversation(resource.data.conversationId);
     }
 
     // Deny everything else by default.
@@ -38,3 +43,4 @@ service cloud.firestore {
     }
   }
 }
+

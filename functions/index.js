@@ -4,11 +4,14 @@ import { defineSecret } from "firebase-functions/params";
 // Secrets are configured with the Firebase CLI, never committed:
 //   firebase functions:secrets:set MISTRAL_API_KEY
 //   firebase functions:secrets:set SERPAPI_API_KEY
+//   firebase functions:secrets:set NVIDIA_API_KEY
 const MISTRAL_API_KEY = defineSecret("MISTRAL_API_KEY");
 const SERPAPI_API_KEY = defineSecret("SERPAPI_API_KEY");
+const NVIDIA_API_KEY = defineSecret("NVIDIA_API_KEY");
 
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
 const SERPAPI_URL = "https://serpapi.com/search.json";
+
 
 // Same-origin in production (Hosting rewrite), so CORS is not needed. We still
 // send permissive headers so the emulator / direct calls work in development.
@@ -25,7 +28,7 @@ function setCors(res) {
  */
 export const api = onRequest(
   {
-    secrets: [MISTRAL_API_KEY, SERPAPI_API_KEY],
+    secrets: [MISTRAL_API_KEY, SERPAPI_API_KEY, NVIDIA_API_KEY],
     cors: false,
     memory: "256MiB",
     timeoutSeconds: 120,
@@ -45,6 +48,10 @@ export const api = onRequest(
     try {
       if (path.endsWith("/mistral")) {
         await handleMistral(req, res);
+        return;
+      }
+      if (path.endsWith("/nvidia")) {
+        await handleNvidia(req, res);
         return;
       }
       if (path.endsWith("/search")) {
@@ -173,3 +180,60 @@ async function handleSearch(req, res) {
     related: (data.related_questions || []).slice(0, 3).map((q) => q.question).filter(Boolean),
   });
 }
+
+async function handleNvidia(req, res) {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  const { messages, model, temperature, top_p, max_tokens } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: "`messages` array is required" });
+    return;
+  }
+
+  const upstream = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${NVIDIA_API_KEY.value()}`,
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      model: model || "z-ai/glm-5.2",
+      messages,
+      stream: true,
+      temperature: temperature ?? 0.7,
+      top_p: top_p ?? 0.95,
+      max_tokens: max_tokens ?? 2048,
+    }),
+  });
+
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => "");
+    console.error("NVIDIA upstream error:", upstream.status, text);
+    res.status(upstream.status || 502).json({
+      error: "nvidia_upstream_error",
+      status: upstream.status,
+    });
+    return;
+  }
+
+  res.status(200);
+  res.set("Content-Type", "text/event-stream; charset=utf-8");
+  res.set("Cache-Control", "no-cache, no-transform");
+  res.set("Connection", "keep-alive");
+
+  const reader = upstream.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+  } finally {
+    res.end();
+  }
+}
+

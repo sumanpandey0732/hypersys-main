@@ -65,6 +65,8 @@ export default function Chat() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isNewConversationRef = useRef(false);
+
 
   const loadConversations = useCallback(async () => {
     if (!user) return;
@@ -82,6 +84,10 @@ export default function Chat() {
 
   const loadMessages = useCallback(async () => {
     if (!activeConversationId) { setMessages([]); return; }
+    if (isNewConversationRef.current) {
+      isNewConversationRef.current = false;
+      return;
+    }
     const data = await firestoreDb.getMessages(activeConversationId);
     setMessages(data.map((m) => ({
       id: m.id,
@@ -166,14 +172,6 @@ export default function Chat() {
 
     const requestContent = trimmedContent || (pendingAttachments.length > 0 ? 'Describe this image in detail.' : '');
 
-    let convId = activeConversationId;
-    const isAuthenticated = !!user && !isGuest;
-
-    if (!convId && isAuthenticated) {
-      convId = await createConversation(trimmedContent || pendingAttachments[0]?.name || 'New chat');
-      if (!convId) return;
-    }
-
     const selectedModelMeta = AI_MODELS.find((model) => model.id === selectedModel) || AI_MODELS[0];
     const imageAttachments = pendingAttachments.filter((a) => a.type === 'image');
     const hasImages = imageAttachments.length > 0;
@@ -210,7 +208,24 @@ export default function Chat() {
         : { role: 'user', content: requestContent };
     const allMessages: AiChatMessage[] = [...historyMessages, currentTurn];
 
+    // Show user message and assistant response placeholder immediately!
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+    let convId = activeConversationId;
+    const isAuthenticated = !!user && !isGuest;
+
+    if (!convId && isAuthenticated) {
+      isNewConversationRef.current = true;
+      convId = await createConversation(trimmedContent || pendingAttachments[0]?.name || 'New chat');
+      if (!convId) {
+        isNewConversationRef.current = false;
+        // Revert messages on UI if creation failed
+        setMessages((prev) => prev.slice(0, -2));
+        return;
+      }
+      setActiveConversationId(convId);
+    }
 
     if (convId && isAuthenticated) {
       await saveMessage(
@@ -221,8 +236,6 @@ export default function Chat() {
         pendingAttachments
       );
     }
-
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
     setIsLoading(true);
     abortControllerRef.current = new AbortController();
