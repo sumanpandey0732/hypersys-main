@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const key = process.env.MISTRAL_API_KEY;
+  const key = process.env.MISTRAL_API_KEY || process.env.VITE_MISTRAL_API_KEY;
   if (!key) {
     res.status(500).json({ error: "MISTRAL_API_KEY is not configured" });
     return;

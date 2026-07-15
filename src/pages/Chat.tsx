@@ -35,13 +35,66 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const SLOW_REQUEST_TIMEOUT_MS = 120_000;
 const DEFAULT_VISION_MODEL = 'nv-llama32-11b-vision';
 
-const fileToDataUrl = (file: File) =>
-  new Promise<string>((resolve, reject) => {
+const compressImage = (file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      resolve(dataUrl);
+    };
+    img.onerror = (err) => {
+      URL.revokeObjectURL(img.src);
+      reject(err);
+    };
+  });
+};
+
+const fileToDataUrl = (file: File): Promise<string> => {
+  if (file.type.startsWith('image/')) {
+    return compressImage(file).catch(() => {
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+        reader.readAsDataURL(file);
+      });
+    });
+  }
+
+  return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
     reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
     reader.readAsDataURL(file);
   });
+};
 
 export default function Chat() {
   const { user, isGuest } = useAuth();
@@ -58,6 +111,7 @@ export default function Chat() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -88,15 +142,23 @@ export default function Chat() {
       isNewConversationRef.current = false;
       return;
     }
-    const data = await firestoreDb.getMessages(activeConversationId);
-    setMessages(data.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      imageUrl: m.role === 'assistant' ? extractFirstMarkdownImage(m.content) : undefined,
-      attachments: m.attachments,
-      modelName: m.modelName,
-    })) || []);
+    setIsMessagesLoading(true);
+    setMessages([]); // Clear stale messages immediately
+    try {
+      const data = await firestoreDb.getMessages(activeConversationId);
+      setMessages(data.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        imageUrl: m.role === 'assistant' ? extractFirstMarkdownImage(m.content) : undefined,
+        attachments: m.attachments,
+        modelName: m.modelName,
+      })) || []);
+    } catch (e) {
+      console.error("Failed to load messages:", e);
+    } finally {
+      setIsMessagesLoading(false);
+    }
   }, [activeConversationId]);
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
@@ -507,7 +569,21 @@ export default function Chat() {
         {/* Messages */}
         <div ref={scrollContainerRef} className="relative z-10 flex-1 overflow-y-auto scrollbar-thin min-h-0" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
           <AnimatePresence mode="wait">
-            {messages.length === 0 ? (
+            {isMessagesLoading ? (
+              <div key="loading-messages" className="flex flex-col items-center justify-center h-full min-h-[50dvh]">
+                <div className="flex gap-1.5 justify-center items-center">
+                  {[0, 0.2, 0.4].map((d, i) => (
+                    <motion.span
+                      key={i}
+                      className="w-3 h-3 rounded-full bg-primary"
+                      animate={{ scale: [1, 1.4, 1], opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: d }}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs text-primary/80 font-medium mt-3">Loading messages...</span>
+              </div>
+            ) : messages.length === 0 ? (
               <WelcomeScreen key="welcome" onSuggestionClick={handleSendMessage} modelName={selectedModelMeta?.name || 'AI'} />
             ) : (
               <motion.div key="messages" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-3 sm:space-y-4">

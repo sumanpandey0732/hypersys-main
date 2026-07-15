@@ -1,7 +1,7 @@
 export const IMAGE_REQUEST_PATTERNS: RegExp[] = [
-  /\b(generate|create|make|draw|design|render|illustrate|paint|sketch)\b.*\b(image|photo|picture|art|illustration|logo|icon|wallpaper|poster|banner|thumbnail|avatar)\b/i,
-  /\b(image|photo|picture|art|illustration|logo|icon|wallpaper|poster|banner|thumbnail|avatar)\b.*\b(generate|create|make|draw|design|render|illustrate|paint|sketch)\b/i,
-  /\bshow me\b.*\b(image|picture|photo|art|illustration|logo)\b/i,
+  /\b(generate|create|make|draw|design|render|illustrate|paint|sketch)\b.*\b(image|photo|picture|art|artwork|illustration|logo|icon|wallpaper|poster|banner|thumbnail|avatar|painting|drawing|sketch)\b/i,
+  /\b(image|photo|picture|art|artwork|illustration|logo|icon|wallpaper|poster|banner|thumbnail|avatar|painting|drawing|sketch)\b.*\b(generate|create|make|draw|design|render|illustrate|paint|sketch)\b/i,
+  /\bshow me\b.*\b(image|picture|photo|art|artwork|illustration|logo|painting)\b/i,
 ];
 
 export function isImageGenerationRequest(input: string): boolean {

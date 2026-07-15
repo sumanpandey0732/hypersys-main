@@ -35,7 +35,7 @@ export default function WelcomeScreen({ onSuggestionClick ,
   return (
     <section 
       className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8 min-h-[calc(100dvh-12rem)]"
-      aria-label="Welcome to ${modelName}"
+      aria-label={`Welcome to ${modelName}`}
     >
       <motion.div 
         className="max-w-2xl w-full text-center"
@@ -146,7 +146,7 @@ export default function WelcomeScreen({ onSuggestionClick ,
         >
           {[
             { title: "Explain Quantum Physics", prompt: "Explain quantum computing in simple terms with a real-life analogy.", icon: "🧬", color: "from-teal-500/10 to-emerald-500/5", border: "hover:border-teal-500/30" },
-            { title: "Generate Artwork", prompt: "Generate a futuristic neon cyberpunk city street at midnight, high resolution, detailed lighting", icon: "🎨", color: "from-pink-500/10 to-purple-500/5", border: "hover:border-pink-500/30" },
+            { title: "Generate Artwork", prompt: "Generate a cyberpunk artwork: a futuristic neon city street at midnight, high resolution, detailed lighting", icon: "🎨", color: "from-pink-500/10 to-purple-500/5", border: "hover:border-pink-500/30" },
             { title: "Compare AI Models", prompt: "What are the core differences between GPT-4, Claude, and Gemini?", icon: "🧠", color: "from-blue-500/10 to-indigo-500/5", border: "hover:border-blue-500/30" },
             { title: "Write a Story", prompt: "Write a suspenseful sci-fi short story about a time traveller visiting the year 2099.", icon: "✏️", color: "from-amber-500/10 to-orange-500/5", border: "hover:border-amber-500/30" },
           ].map((item) => (
