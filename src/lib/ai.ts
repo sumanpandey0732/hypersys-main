@@ -12,7 +12,38 @@ const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 // there is no browser CORS issue. See functions/index.js.
 const MISTRAL_PROXY_URL = "/api/mistral";
 
-export const DEFAULT_CHAT_MODEL = "z-ai/glm-5.2";
+export const DEFAULT_CHAT_MODEL = "meta/llama-3.3-70b-instruct";
+
+// Client model-id -> OpenAI API model name.
+export const OPENAI_MODELS: Record<string, string> = {
+  "openai-gpt-4o": "gpt-4o",
+  "openai-gpt-4o-mini": "gpt-4o-mini",
+};
+
+export function isOpenAIModel(modelId: string): boolean {
+  return modelId in OPENAI_MODELS;
+}
+
+// Client model-id -> Gemini API model name.
+export const GEMINI_MODELS: Record<string, string> = {
+  "google-gemini-2.0-flash": "gemini-2.0-flash",
+  "google-gemini-1.5-pro": "gemini-1.5-pro",
+  "google-gemini-1.5-flash": "gemini-1.5-flash",
+};
+
+export function isGeminiModel(modelId: string): boolean {
+  return modelId in GEMINI_MODELS;
+}
+
+// Client model-id -> xAI API model name.
+export const XAI_MODELS: Record<string, string> = {
+  "xai-grok-2": "grok-2",
+  "xai-grok-beta": "grok-beta",
+};
+
+export function isXAIModel(modelId: string): boolean {
+  return modelId in XAI_MODELS;
+}
 
 // Client model-id -> Mistral API model name. These route through the proxy.
 export const MISTRAL_MODELS: Record<string, string> = {
@@ -46,6 +77,12 @@ export const NVIDIA_MODELS: Record<string, string> = {
 
 // Models that can accept image inputs (OpenAI-style image_url content parts).
 export const VISION_MODEL_IDS = new Set<string>([
+  "openai-gpt-4o",
+  "openai-gpt-4o-mini",
+  "google-gemini-2.0-flash",
+  "google-gemini-1.5-pro",
+  "google-gemini-1.5-flash",
+  "xai-grok-2",
   "nv-cosmos-reason",
   "nv-llama32-11b-vision",
   "nv-llama32-90b-vision",
@@ -90,65 +127,121 @@ const apiKey = () => import.meta.env.VITE_NVIDIA_API_KEY as string | undefined;
 // Chat / vision streaming
 // ---------------------------------------------------------------------------
 
+const OPENAI_PROXY_URL = "/api/openai";
+const GEMINI_PROXY_URL = "/api/gemini";
+const XAI_PROXY_URL = "/api/xai";
+const NVIDIA_PROXY_URL = "/api/nvidia";
+
 export async function generateChatResponse(
   messages: ChatMessage[],
   modelId: string,
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ) {
+  if (isOpenAIModel(modelId)) {
+    return generateOpenAIResponse(messages, modelId, onChunk, signal);
+  }
+  if (isGeminiModel(modelId)) {
+    return generateGeminiResponse(messages, modelId, onChunk, signal);
+  }
+  if (isXAIModel(modelId)) {
+    return generateXAIResponse(messages, modelId, onChunk, signal);
+  }
   if (isMistralModel(modelId)) {
     return generateMistralResponse(messages, modelId, onChunk, signal);
   }
   return generateNvidiaResponse(messages, modelId, onChunk, signal);
 }
 
-// Parse an OpenAI-compatible SSE stream and forward content deltas. Shared by
-// the NVIDIA and Mistral providers, which both emit `data: {...}` chunks.
-async function pumpOpenAiStream(
-  response: Response,
+async function generateOpenAIResponse(
+  messages: ChatMessage[],
+  modelId: string,
   onChunk: (text: string) => void,
+  signal?: AbortSignal,
 ) {
-  if (!response.body) throw new Error("No response body");
+  const model = OPENAI_MODELS[modelId] || "gpt-4o-mini";
+  const response = await fetch(OPENAI_PROXY_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      temperature: 0.7,
+      top_p: 0.95,
+      max_tokens: 2048,
+    }),
+    signal,
+  });
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine || trimmedLine.startsWith(":") || !trimmedLine.startsWith("data:")) continue;
-
-      const payload = trimmedLine.replace(/^data:\s*/, "");
-      if (payload === "[DONE]") continue;
-
-      try {
-        const parsed = JSON.parse(payload);
-        const delta = parsed.choices?.[0]?.delta?.content;
-        if (delta) onChunk(delta);
-      } catch {
-        // ignore JSON parse errors for incomplete chunks
-      }
-    }
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("OpenAI API error:", response.status, errText);
+    throw new Error(friendlyHttpError(response.status, "OpenAI proxy"));
   }
+
+  await pumpOpenAiStream(response, onChunk);
 }
 
-function friendlyHttpError(status: number, providerLabel: string): string {
-  if (status === 401 || status === 403) return `Authentication failed. Please check the ${providerLabel} configuration.`;
-  if (status === 404) return "That model is currently unavailable. Try a different one.";
-  if (status === 429) return "Rate limit reached. Please wait a moment and try again.";
-  if (status >= 500) return "The model service is temporarily unavailable. Please retry.";
-  return `The model responded with an error (${status}).`;
+async function generateGeminiResponse(
+  messages: ChatMessage[],
+  modelId: string,
+  onChunk: (text: string) => void,
+  signal?: AbortSignal,
+) {
+  const model = GEMINI_MODELS[modelId] || "gemini-2.0-flash";
+  const response = await fetch(GEMINI_PROXY_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      temperature: 0.7,
+      top_p: 0.95,
+      max_tokens: 2048,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("Gemini API error:", response.status, errText);
+    throw new Error(friendlyHttpError(response.status, "Gemini proxy"));
+  }
+
+  await pumpOpenAiStream(response, onChunk);
 }
 
-const NVIDIA_PROXY_URL = "/api/nvidia";
+async function generateXAIResponse(
+  messages: ChatMessage[],
+  modelId: string,
+  onChunk: (text: string) => void,
+  signal?: AbortSignal,
+) {
+  const model = XAI_MODELS[modelId] || "grok-2";
+  const response = await fetch(XAI_PROXY_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      temperature: 0.7,
+      top_p: 0.95,
+      max_tokens: 2048,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("xAI API error:", response.status, errText);
+    throw new Error(friendlyHttpError(response.status, "xAI proxy"));
+  }
+
+  await pumpOpenAiStream(response, onChunk);
+}
 
 async function generateNvidiaResponse(
   messages: ChatMessage[],
@@ -197,6 +290,7 @@ async function generateMistralResponse(
     body: JSON.stringify({
       model,
       messages,
+      stream: true,
       temperature: 0.7,
       top_p: 0.95,
       max_tokens: 2048,
@@ -211,6 +305,50 @@ async function generateMistralResponse(
   }
 
   await pumpOpenAiStream(response, onChunk);
+}
+
+async function pumpOpenAiStream(
+  response: Response,
+  onChunk: (text: string) => void,
+) {
+  if (!response.body) throw new Error("No response body");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine || trimmedLine.startsWith(":") || !trimmedLine.startsWith("data:")) continue;
+
+      const payload = trimmedLine.replace(/^data:\s*/, "");
+      if (payload === "[DONE]") continue;
+
+      try {
+        const parsed = JSON.parse(payload);
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (delta) onChunk(delta);
+      } catch {
+        // ignore JSON parse errors for incomplete chunks
+      }
+    }
+  }
+}
+
+function friendlyHttpError(status: number, providerLabel: string): string {
+  if (status === 401 || status === 403) return `Authentication failed. Please check the ${providerLabel} configuration.`;
+  if (status === 404) return "That model is currently unavailable. Try a different one.";
+  if (status === 429) return "Rate limit reached. Please wait a moment and try again.";
+  if (status >= 500) return "The model service is temporarily unavailable. Please retry.";
+  return `The model responded with an error (${status}).`;
 }
 
 // ---------------------------------------------------------------------------

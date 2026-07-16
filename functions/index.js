@@ -5,9 +5,15 @@ import { defineSecret } from "firebase-functions/params";
 //   firebase functions:secrets:set MISTRAL_API_KEY
 //   firebase functions:secrets:set SERPAPI_API_KEY
 //   firebase functions:secrets:set NVIDIA_API_KEY
+//   firebase functions:secrets:set OPENAI_API_KEY
+//   firebase functions:secrets:set GEMINI_API_KEY
+//   firebase functions:secrets:set XAI_API_KEY
 const MISTRAL_API_KEY = defineSecret("MISTRAL_API_KEY");
 const SERPAPI_API_KEY = defineSecret("SERPAPI_API_KEY");
 const NVIDIA_API_KEY = defineSecret("NVIDIA_API_KEY");
+const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
+const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+const XAI_API_KEY = defineSecret("XAI_API_KEY");
 
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
 const SERPAPI_URL = "https://serpapi.com/search.json";
@@ -54,6 +60,22 @@ export const api = onRequest(
         await handleNvidia(req, res);
         return;
       }
+      if (path.endsWith("/openai")) {
+        await handleOpenAI(req, res);
+        return;
+      }
+      if (path.endsWith("/gemini")) {
+        await handleGemini(req, res);
+        return;
+      }
+      if (path.endsWith("/xai")) {
+        await handleXAI(req, res);
+        return;
+      }
+      if (path.endsWith("/pollinations")) {
+        await handlePollinations(req, res);
+        return;
+      }
       if (path.endsWith("/search")) {
         await handleSearch(req, res);
         return;
@@ -70,6 +92,175 @@ export const api = onRequest(
   }
 );
 
+function getApiKey(secretObject, envVarName1, envVarName2) {
+  try {
+    const val = secretObject.value();
+    if (val && val !== "your-key-here" && !val.startsWith("your-")) return val;
+  } catch (e) {
+    // Secret not defined or not available in current environment
+  }
+  return process.env[envVarName1] || process.env[envVarName2];
+}
+
+async function handleOpenAI(req, res) {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+  const key = getApiKey(OPENAI_API_KEY, "VITE_OPENAI_API_KEY", "OPENAI_API_KEY");
+  if (!key || key === "your-openai-key" || key.startsWith("your-")) {
+    res.status(400).json({ error: "OpenAI API key is not configured." });
+    return;
+  }
+  const { messages, model, temperature, top_p, max_tokens } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: "`messages` array is required" });
+    return;
+  }
+  const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      model: model || "gpt-4o-mini",
+      messages,
+      stream: true,
+      temperature: temperature ?? 0.7,
+      top_p: top_p ?? 0.95,
+      max_tokens: max_tokens ?? 2048,
+    }),
+  });
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => "");
+    console.error("OpenAI upstream error:", upstream.status, text);
+    res.status(upstream.status || 502).json({ error: "openai_upstream_error", status: upstream.status });
+    return;
+  }
+  res.status(200);
+  res.set("Content-Type", "text/event-stream; charset=utf-8");
+  res.set("Cache-Control", "no-cache, no-transform");
+  res.set("Connection", "keep-alive");
+  const reader = upstream.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+  } finally {
+    res.end();
+  }
+}
+
+async function handleGemini(req, res) {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+  const key = getApiKey(GEMINI_API_KEY, "VITE_GEMINI_API_KEY", "GEMINI_API_KEY");
+  if (!key || key === "your-gemini-key" || key.startsWith("your-")) {
+    res.status(400).json({ error: "Gemini API key is not configured." });
+    return;
+  }
+  const { messages, model, temperature, top_p, max_tokens } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: "`messages` array is required" });
+    return;
+  }
+  const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      model: model || "gemini-2.0-flash",
+      messages,
+      stream: true,
+      temperature: temperature ?? 0.7,
+      top_p: top_p ?? 0.95,
+      max_tokens: max_tokens ?? 2048,
+    }),
+  });
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => "");
+    console.error("Gemini upstream error:", upstream.status, text);
+    res.status(upstream.status || 502).json({ error: "gemini_upstream_error", status: upstream.status });
+    return;
+  }
+  res.status(200);
+  res.set("Content-Type", "text/event-stream; charset=utf-8");
+  res.set("Cache-Control", "no-cache, no-transform");
+  res.set("Connection", "keep-alive");
+  const reader = upstream.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+  } finally {
+    res.end();
+  }
+}
+
+async function handleXAI(req, res) {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+  const key = getApiKey(XAI_API_KEY, "VITE_XAI_API_KEY", "XAI_API_KEY");
+  if (!key || key === "your-xai-key" || key.startsWith("your-")) {
+    res.status(400).json({ error: "xAI (Grok) API key is not configured." });
+    return;
+  }
+  const { messages, model, temperature, top_p, max_tokens } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: "`messages` array is required" });
+    return;
+  }
+  const upstream = await fetch("https://api.x.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      model: model || "grok-2",
+      messages,
+      stream: true,
+      temperature: temperature ?? 0.7,
+      top_p: top_p ?? 0.95,
+      max_tokens: max_tokens ?? 2048,
+    }),
+  });
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => "");
+    console.error("xAI upstream error:", upstream.status, text);
+    res.status(upstream.status || 502).json({ error: "xai_upstream_error", status: upstream.status });
+    return;
+  }
+  res.status(200);
+  res.set("Content-Type", "text/event-stream; charset=utf-8");
+  res.set("Cache-Control", "no-cache, no-transform");
+  res.set("Connection", "keep-alive");
+  const reader = upstream.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+  } finally {
+    res.end();
+  }
+}
+
 async function handleMistral(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
@@ -82,11 +273,12 @@ async function handleMistral(req, res) {
     return;
   }
 
+  const key = getApiKey(MISTRAL_API_KEY, "VITE_MISTRAL_API_KEY", "MISTRAL_API_KEY");
   const upstream = await fetch(MISTRAL_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${MISTRAL_API_KEY.value()}`,
+      Authorization: `Bearer ${key}`,
       Accept: "text/event-stream",
     },
     body: JSON.stringify({
@@ -139,11 +331,12 @@ async function handleSearch(req, res) {
     return;
   }
 
+  const key = getApiKey(SERPAPI_API_KEY, "VITE_SERP_API_KEY", "SERPAPI_API_KEY");
   const params = new URLSearchParams({
     engine: "google",
     q: query,
     num: String(Math.min(Math.max(Number(num) || 5, 1), 10)),
-    api_key: SERPAPI_API_KEY.value(),
+    api_key: key,
   });
 
   const upstream = await fetch(`${SERPAPI_URL}?${params.toString()}`);
@@ -193,11 +386,12 @@ async function handleNvidia(req, res) {
     return;
   }
 
+  const key = getApiKey(NVIDIA_API_KEY, "VITE_NVIDIA_API_KEY", "NVIDIA_API_KEY");
   const upstream = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${NVIDIA_API_KEY.value()}`,
+      Authorization: `Bearer ${key}`,
       Accept: "text/event-stream",
     },
     body: JSON.stringify({
@@ -215,6 +409,61 @@ async function handleNvidia(req, res) {
     console.error("NVIDIA upstream error:", upstream.status, text);
     res.status(upstream.status || 502).json({
       error: "nvidia_upstream_error",
+      status: upstream.status,
+    });
+    return;
+  }
+
+  res.status(200);
+  res.set("Content-Type", "text/event-stream; charset=utf-8");
+  res.set("Cache-Control", "no-cache, no-transform");
+  res.set("Connection", "keep-alive");
+
+  const reader = upstream.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+  } finally {
+    res.end();
+  }
+}
+
+async function handlePollinations(req, res) {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  const { messages, model, temperature, top_p, max_tokens } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: "`messages` array is required" });
+    return;
+  }
+
+  const upstream = await fetch("https://text.pollinations.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      model: model || "openai",
+      messages,
+      stream: true,
+      temperature: temperature ?? 0.7,
+      top_p: top_p ?? 0.95,
+      max_tokens: max_tokens ?? 2048,
+    }),
+  });
+
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => "");
+    console.error("Pollinations upstream error:", upstream.status, text);
+    res.status(upstream.status || 502).json({
+      error: "pollinations_upstream_error",
       status: upstream.status,
     });
     return;

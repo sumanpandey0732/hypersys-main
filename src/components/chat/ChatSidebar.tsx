@@ -16,31 +16,38 @@ export interface AIModel {
 }
 
 export const AI_MODELS: AIModel[] = [
-  // Featured chat models
-  { id: 'default', name: 'Aetheris', label: 'Aetheris', description: 'Balanced flagship assistant', emoji: '✨', kind: 'Chat', featured: true },
-  { id: 'nv-glm', name: 'GLM 5.2', label: 'GLM', description: 'Fast general language model', emoji: '🧬', kind: 'Chat', featured: true },
-  { id: 'nv-deepseek', name: 'DeepSeek V4 Pro', label: 'DeepSeek', description: 'Deep reasoning (slower)', emoji: '🧠', kind: 'Chat', featured: true },
-  { id: 'nv-kimi', name: 'Kimi K2.6', label: 'Kimi', description: 'Long-context chat', emoji: '🌙', kind: 'Chat', featured: true },
+  // Popular / Featured Chat Models
+  { id: 'openai-gpt-4o', name: 'GPT-4o', label: 'GPT-4o', description: 'OpenAI flagship multimodal intelligence', emoji: '🤖', kind: 'Chat', featured: true },
+  { id: 'google-gemini-2.0-flash', name: 'Gemini 2.0 Flash', label: 'Gemini 2.0 Flash', description: 'Google next-gen speed & reasoning', emoji: '💎', kind: 'Chat', featured: true },
+  { id: 'openai-gpt-4o-mini', name: 'GPT-4o mini', label: 'GPT-4o mini', description: 'OpenAI fast, cost-efficient chat', emoji: '⚡', kind: 'Chat', featured: true },
+  { id: 'nv-deepseek', name: 'DeepSeek V4 Pro', label: 'DeepSeek', description: 'Deep reasoning & logic (slower)', emoji: '🧠', kind: 'Chat', featured: true },
+  { id: 'xai-grok-2', name: 'Grok 2', label: 'Grok 2', description: 'xAI flagship chat & real-time info', emoji: '🛸', kind: 'Chat', featured: true },
+  { id: 'google-gemini-1.5-pro', name: 'Gemini 1.5 Pro', label: 'Gemini 1.5 Pro', description: 'Google flagship reasoning, massive context', emoji: '🔮', kind: 'Chat', featured: true },
+  { id: 'nv-llama33-70b', name: 'Llama 3.3 70B', label: 'Llama 3.3', description: 'Meta flagship instruct model', emoji: '🦙', kind: 'Chat', featured: true },
   { id: 'ms-large', name: 'Mistral Large', label: 'Mistral Large', description: 'Mistral flagship reasoning', emoji: '🇫🇷', kind: 'Chat', featured: true },
-  { id: 'nv-llama32-11b-vision', name: 'Llama 3.2 Vision', label: 'Llama Vision', description: 'Analyze & describe images', emoji: '👁️', kind: 'Vision', featured: true },
-  { id: 'nv-qwen-image', name: 'Image Studio', label: 'Image Studio', description: 'Generate images from text', emoji: '🎨', kind: 'Image', featured: true },
+  { id: 'default', name: 'Aetheris', label: 'Aetheris', description: 'Balanced flagship assistant', emoji: '✨', kind: 'Chat', featured: true },
 
-  // More chat models
-  { id: 'nv-minimax', name: 'MiniMax M3', label: 'MiniMax', description: 'Advanced MoE reasoning', emoji: '⚡', kind: 'Chat', featured: false },
+  // More Chat Models
+  { id: 'google-gemini-1.5-flash', name: 'Gemini 1.5 Flash', label: 'Gemini 1.5 Flash', description: 'Google efficient long-context assistant', emoji: '⚡', kind: 'Chat', featured: false },
+  { id: 'xai-grok-beta', name: 'Grok Beta', label: 'Grok Beta', description: 'xAI experimental fast assistant', emoji: '🌌', kind: 'Chat', featured: false },
+  { id: 'nv-glm', name: 'GLM 5.2', label: 'GLM', description: 'Fast general language model', emoji: '🧬', kind: 'Chat', featured: false },
+  { id: 'nv-kimi', name: 'Kimi K2.6', label: 'Kimi', description: 'Long-context chat', emoji: '🌙', kind: 'Chat', featured: false },
   { id: 'nv-deepseek-flash', name: 'DeepSeek V4 Flash', label: 'DeepSeek Flash', description: 'Fast reasoning model', emoji: '💨', kind: 'Chat', featured: false },
-  { id: 'nv-qwen3-next', name: 'Qwen3 Next 80B', label: 'Qwen Next', description: 'Efficient large model', emoji: '🌀', kind: 'Chat', featured: false },
+  { id: 'nv-minimax', name: 'MiniMax M3', label: 'MiniMax', description: 'Advanced MoE reasoning', emoji: '⚡', kind: 'Chat', featured: false },
   { id: 'nv-qwen35-397b', name: 'Qwen 3.5 397B', label: 'Qwen 397B', description: 'Massive language model', emoji: '🔮', kind: 'Chat', featured: false },
-  { id: 'nv-llama33-70b', name: 'Llama 3.3 70B', label: 'Llama 3.3', description: 'Meta flagship instruct', emoji: '🦙', kind: 'Chat', featured: false },
   { id: 'ms-small', name: 'Mistral Small', label: 'Mistral Small', description: 'Fast, low-cost Mistral', emoji: '🥐', kind: 'Chat', featured: false },
   { id: 'ms-codestral', name: 'Codestral', label: 'Codestral', description: 'Mistral coding specialist', emoji: '💻', kind: 'Chat', featured: false },
+  { id: 'nv-qwen3-next', name: 'Qwen3 Next 80B', label: 'Qwen Next', description: 'Efficient large model', emoji: '🌀', kind: 'Chat', featured: false },
   { id: 'ms-nemo', name: 'Mistral Nemo', label: 'Mistral Nemo', description: 'Compact multilingual model', emoji: '🔷', kind: 'Chat', featured: false },
 
-  // More vision models
+  // Vision Models
+  { id: 'nv-llama32-11b-vision', name: 'Llama 3.2 Vision', label: 'Llama Vision', description: 'Analyze & describe images', emoji: '👁️', kind: 'Vision', featured: true },
   { id: 'nv-llama32-90b-vision', name: 'Llama 3.2 90B Vision', label: 'Llama 90B Vision', description: 'High-detail image understanding', emoji: '🔬', kind: 'Vision', featured: false },
   { id: 'nv-cosmos-reason', name: 'Cosmos Reason 8B', label: 'Cosmos', description: 'Visual reasoning model', emoji: '🌌', kind: 'Vision', featured: false },
   { id: 'nv-nemotron-vl', name: 'Nemotron Nano VL', label: 'Nemotron VL', description: 'Efficient vision processing', emoji: '🦁', kind: 'Vision', featured: false },
 
-  // Image generation styles (all route through the image engine)
+  // Image Generation Models
+  { id: 'nv-qwen-image', name: 'Image Studio', label: 'Image Studio', description: 'Generate images from text', emoji: '🎨', kind: 'Image', featured: true },
   { id: 'nv-sd35-large', name: 'Photoreal', label: 'Photoreal', description: 'Detailed photorealistic images', emoji: '🖼️', kind: 'Image', featured: false },
   { id: 'nv-flux2-klein', name: 'Artistic', label: 'Artistic', description: 'Creative & stylized images', emoji: '🎈', kind: 'Image', featured: false },
 ];
