@@ -1,51 +1,9 @@
-// ---------------------------------------------------------------------------
-// Model registry
-// ---------------------------------------------------------------------------
-// These IDs are verified against the NVIDIA `integrate.api.nvidia.com` catalog.
-// `default` maps to a fast, reliable flagship so the app never falls through to
-// an invalid model id.
-
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
-
-// Mistral is called through our same-origin serverless proxy (Firebase
-// Function behind the /api Hosting rewrite) so the key stays server-side and
-// there is no browser CORS issue. See functions/index.js.
-const MISTRAL_PROXY_URL = "/api/mistral";
+const MISTRAL_BASE_URL = "https://api.mistral.ai/v1";
 
 export const DEFAULT_CHAT_MODEL = "meta/llama-3.3-70b-instruct";
 
-// Client model-id -> OpenAI API model name.
-export const OPENAI_MODELS: Record<string, string> = {
-  "openai-gpt-4o": "gpt-4o",
-  "openai-gpt-4o-mini": "gpt-4o-mini",
-};
-
-export function isOpenAIModel(modelId: string): boolean {
-  return modelId in OPENAI_MODELS;
-}
-
-// Client model-id -> Gemini API model name.
-export const GEMINI_MODELS: Record<string, string> = {
-  "google-gemini-2.0-flash": "gemini-2.0-flash",
-  "google-gemini-1.5-pro": "gemini-1.5-pro",
-  "google-gemini-1.5-flash": "gemini-1.5-flash",
-};
-
-export function isGeminiModel(modelId: string): boolean {
-  return modelId in GEMINI_MODELS;
-}
-
-// Client model-id -> xAI API model name.
-export const XAI_MODELS: Record<string, string> = {
-  "xai-grok-2": "grok-2",
-  "xai-grok-beta": "grok-beta",
-};
-
-export function isXAIModel(modelId: string): boolean {
-  return modelId in XAI_MODELS;
-}
-
-// Client model-id -> Mistral API model name. These route through the proxy.
+// Client model-id -> Mistral API model name.
 export const MISTRAL_MODELS: Record<string, string> = {
   "ms-large": "mistral-large-latest",
   "ms-small": "mistral-small-latest",
@@ -77,12 +35,6 @@ export const NVIDIA_MODELS: Record<string, string> = {
 
 // Models that can accept image inputs (OpenAI-style image_url content parts).
 export const VISION_MODEL_IDS = new Set<string>([
-  "openai-gpt-4o",
-  "openai-gpt-4o-mini",
-  "google-gemini-2.0-flash",
-  "google-gemini-1.5-pro",
-  "google-gemini-1.5-flash",
-  "xai-grok-2",
   "nv-cosmos-reason",
   "nv-llama32-11b-vision",
   "nv-llama32-90b-vision",
@@ -121,16 +73,19 @@ export interface ChatMessage {
   content: string | ContentPart[];
 }
 
-const apiKey = () => import.meta.env.VITE_NVIDIA_API_KEY as string | undefined;
+const getNvidiaApiKey = () => {
+  const key = import.meta.env.VITE_NVIDIA_API_KEY as string | undefined;
+  return key ? key.trim() : undefined;
+};
+
+const getMistralApiKey = () => {
+  const key = import.meta.env.VITE_MISTRAL_API_KEY as string | undefined;
+  return key ? key.trim() : undefined;
+};
 
 // ---------------------------------------------------------------------------
 // Chat / vision streaming
 // ---------------------------------------------------------------------------
-
-const OPENAI_PROXY_URL = "/api/openai";
-const GEMINI_PROXY_URL = "/api/gemini";
-const XAI_PROXY_URL = "/api/xai";
-const NVIDIA_PROXY_URL = "/api/nvidia";
 
 export async function generateChatResponse(
   messages: ChatMessage[],
@@ -138,109 +93,10 @@ export async function generateChatResponse(
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ) {
-  if (isOpenAIModel(modelId)) {
-    return generateOpenAIResponse(messages, modelId, onChunk, signal);
-  }
-  if (isGeminiModel(modelId)) {
-    return generateGeminiResponse(messages, modelId, onChunk, signal);
-  }
-  if (isXAIModel(modelId)) {
-    return generateXAIResponse(messages, modelId, onChunk, signal);
-  }
   if (isMistralModel(modelId)) {
     return generateMistralResponse(messages, modelId, onChunk, signal);
   }
   return generateNvidiaResponse(messages, modelId, onChunk, signal);
-}
-
-async function generateOpenAIResponse(
-  messages: ChatMessage[],
-  modelId: string,
-  onChunk: (text: string) => void,
-  signal?: AbortSignal,
-) {
-  const model = OPENAI_MODELS[modelId] || "gpt-4o-mini";
-  const response = await fetch(OPENAI_PROXY_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-      temperature: 0.7,
-      top_p: 0.95,
-      max_tokens: 2048,
-    }),
-    signal,
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error("OpenAI API error:", response.status, errText);
-    throw new Error(friendlyHttpError(response.status, "OpenAI proxy"));
-  }
-
-  await pumpOpenAiStream(response, onChunk);
-}
-
-async function generateGeminiResponse(
-  messages: ChatMessage[],
-  modelId: string,
-  onChunk: (text: string) => void,
-  signal?: AbortSignal,
-) {
-  const model = GEMINI_MODELS[modelId] || "gemini-2.0-flash";
-  const response = await fetch(GEMINI_PROXY_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-      temperature: 0.7,
-      top_p: 0.95,
-      max_tokens: 2048,
-    }),
-    signal,
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error("Gemini API error:", response.status, errText);
-    throw new Error(friendlyHttpError(response.status, "Gemini proxy"));
-  }
-
-  await pumpOpenAiStream(response, onChunk);
-}
-
-async function generateXAIResponse(
-  messages: ChatMessage[],
-  modelId: string,
-  onChunk: (text: string) => void,
-  signal?: AbortSignal,
-) {
-  const model = XAI_MODELS[modelId] || "grok-2";
-  const response = await fetch(XAI_PROXY_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-      temperature: 0.7,
-      top_p: 0.95,
-      max_tokens: 2048,
-    }),
-    signal,
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    console.error("xAI API error:", response.status, errText);
-    throw new Error(friendlyHttpError(response.status, "xAI proxy"));
-  }
-
-  await pumpOpenAiStream(response, onChunk);
 }
 
 async function generateNvidiaResponse(
@@ -249,12 +105,18 @@ async function generateNvidiaResponse(
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ) {
+  const key = getNvidiaApiKey();
+  if (!key) {
+    throw new Error("NVIDIA API key is missing. Please configure VITE_NVIDIA_API_KEY in your .env file.");
+  }
+
   const model = NVIDIA_MODELS[modelId] || DEFAULT_CHAT_MODEL;
 
-  const response = await fetch(NVIDIA_PROXY_URL, {
+  const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
       model,
@@ -270,7 +132,7 @@ async function generateNvidiaResponse(
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
     console.error("NVIDIA API error:", response.status, errText);
-    throw new Error(friendlyHttpError(response.status, "NVIDIA proxy"));
+    throw new Error(friendlyHttpError(response.status, "NVIDIA API"));
   }
 
   await pumpOpenAiStream(response, onChunk);
@@ -282,11 +144,19 @@ async function generateMistralResponse(
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ) {
+  const key = getMistralApiKey();
+  if (!key) {
+    throw new Error("Mistral API key is missing. Please configure VITE_MISTRAL_API_KEY in your .env file.");
+  }
+
   const model = MISTRAL_MODELS[modelId] || "mistral-large-latest";
 
-  const response = await fetch(MISTRAL_PROXY_URL, {
+  const response = await fetch(`${MISTRAL_BASE_URL}/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+    },
     body: JSON.stringify({
       model,
       messages,
@@ -300,8 +170,8 @@ async function generateMistralResponse(
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    console.error("Mistral proxy error:", response.status, errText);
-    throw new Error(friendlyHttpError(response.status, "Mistral proxy"));
+    console.error("Mistral API error:", response.status, errText);
+    throw new Error(friendlyHttpError(response.status, "Mistral API"));
   }
 
   await pumpOpenAiStream(response, onChunk);
