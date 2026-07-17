@@ -104,9 +104,14 @@ export default function ChatMessage({ role, content, isStreaming, attachments = 
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      initial={{ opacity: 0, scale: 0.95, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ 
+        type: "spring", 
+        stiffness: 260, 
+        damping: 20, 
+        mass: 1 
+      }}
       className={`w-full ${isUser ? 'flex justify-end' : ''}`}
     >
       {isUser ? (
@@ -182,52 +187,59 @@ export default function ChatMessage({ role, content, isStreaming, attachments = 
                   remarkPlugins={[remarkGfm]}
                   components={{
                     h1: ({ children }) => (
-                      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-5 mt-8 first:mt-0 text-foreground bg-gradient-to-r from-primary/20 via-primary/10 to-transparent py-3 px-4 rounded-xl border-l-4 border-primary">
+                      <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 mt-10 first:mt-0 text-foreground bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary drop-shadow-sm tracking-tight">
                         {children}
                       </h1>
                     ),
                     h2: ({ children }) => (
-                      <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-4 mt-7 first:mt-0 text-foreground flex items-center gap-3">
-                        <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-primary to-primary/50 flex-shrink-0" />
+                      <h2 className="text-2xl sm:text-3xl font-bold mb-5 mt-8 first:mt-0 text-foreground/95 flex items-center gap-3">
+                        <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-accent flex-shrink-0" />
                         {children}
                       </h2>
                     ),
                     h3: ({ children }) => (
-                      <h3 className="text-lg sm:text-xl md:text-2xl font-semibold mb-3 mt-6 first:mt-0 text-foreground/95 border-b border-border/30 pb-2">{children}</h3>
+                      <h3 className="text-xl sm:text-2xl font-semibold mb-4 mt-6 first:mt-0 text-foreground/90 tracking-tight">{children}</h3>
                     ),
                     p: ({ children, node }) => {
                       // If paragraph contains only an image, render as div to avoid nesting issues
                       const hasImage = node?.children?.some((child: any) => child.tagName === 'img');
                       if (hasImage) {
-                        return <div className="text-[15px] sm:text-base md:text-lg leading-[1.85] mb-4 last:mb-0 text-foreground/90">{children}</div>;
+                        return <div className="text-[16px] sm:text-[17px] leading-[1.8] mb-5 last:mb-0 text-foreground/80">{children}</div>;
                       }
-                      return <p className="text-[15px] sm:text-base md:text-lg leading-[1.85] mb-4 last:mb-0 text-foreground/90">{children}</p>;
+                      return <p className="text-[16px] sm:text-[17px] leading-[1.8] mb-5 last:mb-0 text-foreground/80">{children}</p>;
                     },
-                    ul: ({ children }) => <ul className="space-y-3.5 my-4 pl-1 list-none">{children}</ul>,
-                    ol: ({ children }) => <ol className="space-y-3.5 my-4 pl-1 list-none">{children}</ol>,
-                    li: ({ children }) => (
-                      <li className="flex items-start gap-3.5 text-[15px] sm:text-base leading-relaxed text-foreground/90 py-1.5 px-1 hover:translate-x-0.5 transition-transform duration-200">
-                        <span className="flex-shrink-0 mt-2.5 w-2 h-2 rounded-full bg-gradient-to-br from-primary to-primary/60 shadow-sm shadow-primary/45" />
-                        <span className="flex-1">{children}</span>
-                      </li>
-                    ),
+                    ul: ({ children }) => <ul className="space-y-4 my-6 pl-2 list-none">{children}</ul>,
+                    ol: ({ children }) => <ol className="space-y-4 my-6 pl-6 list-decimal marker:text-primary/70 marker:font-semibold text-[16px] sm:text-[17px]">{children}</ol>,
+                    li: ({ children, className }) => {
+                      if (className?.includes('task-list-item')) {
+                        return <li className="flex items-center gap-3 text-[16px] sm:text-[17px] text-foreground/80 my-2">{children}</li>;
+                      }
+                      return (
+                        <li className="flex items-start gap-4 text-[16px] sm:text-[17px] leading-relaxed text-foreground/80 py-1 px-1 transition-transform duration-200 group/li">
+                          <span className="flex-shrink-0 mt-[10px] w-2 h-2 rounded-full bg-primary/40 group-hover/li:bg-primary group-hover/li:shadow-[0_0_8px_hsla(var(--primary)/0.6)] transition-all" />
+                          <span className="flex-1">{children}</span>
+                        </li>
+                      );
+                    },
                     strong: ({ children }) => (
-                      <strong className="font-extrabold gradient-text">{children}</strong>
+                      <strong className="font-bold text-foreground bg-primary/10 px-1 rounded-sm">{children}</strong>
                     ),
-                    em: ({ children }) => <em className="italic text-primary/90">{children}</em>,
+                    em: ({ children }) => <em className="italic text-foreground/90">{children}</em>,
                     blockquote: ({ children }) => (
-                      <blockquote className="my-5 pl-5 py-3 border-l-4 border-primary/40 bg-primary/5 rounded-r-xl text-foreground/85 italic">{children}</blockquote>
+                      <blockquote className="my-6 pl-6 py-4 border-l-[3px] border-primary/50 bg-primary/[0.03] rounded-r-2xl text-foreground/75 text-[17px] italic shadow-inner">
+                        {children}
+                      </blockquote>
                     ),
                     code: ({ className, children }) => {
                       const match = /language-(\w+)/.exec(className || '');
                       if (!match) {
-                        return <code className="px-2 py-0.5 rounded-md bg-primary/15 text-primary font-mono text-[0.9em] border border-primary/20">{children}</code>;
+                        return <code className="px-1.5 py-0.5 mx-0.5 rounded-md bg-secondary/60 border border-border/40 text-primary font-mono text-[0.85em]">{children}</code>;
                       }
                       return <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>;
                     },
                     pre: ({ children }) => <>{children}</>,
                     a: ({ href, children }) => (
-                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary font-semibold hover:underline underline-offset-4">{children}</a>
+                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-accent font-medium underline underline-offset-4 decoration-primary/30 hover:decoration-accent transition-colors">{children}</a>
                     ),
                     table: ({ children }) => (
                       <div className="my-5 overflow-x-auto rounded-2xl border border-border/40 shadow-lg">

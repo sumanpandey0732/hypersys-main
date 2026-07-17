@@ -171,22 +171,24 @@ export default function ChatInput({ onSend, isLoading, disabled, onStop, modelNa
                     const fileKey = `${file.name}-${file.size}`;
 
                     return (
-                      <div key={fileKey} className="relative w-20 h-20 rounded-2xl overflow-hidden border border-border/30 bg-secondary/40 flex-shrink-0 shadow-lg">
+                      <div key={fileKey} className="group/file relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-primary/20 bg-background/50 flex-shrink-0 shadow-lg transition-transform hover:scale-[1.03] hover:border-primary/50 hover:shadow-primary/20">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover/file:opacity-100 transition-opacity z-10 pointer-events-none" />
+                        
                         {isImageFile(file) ? (
-                          <img src={url} alt={file.name} className="w-full h-full object-cover" loading="lazy" />
+                          <img src={url} alt={file.name} className="w-full h-full object-cover relative z-0" loading="lazy" />
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 px-2 text-center bg-secondary/60">
-                            <FileText className="w-6 h-6 text-primary" />
-                            <span className="text-[10px] leading-tight text-foreground/80 line-clamp-2">{file.name}</span>
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 px-2 text-center bg-secondary/30 relative z-0">
+                            <FileText className="w-7 h-7 text-primary/80 drop-shadow-md" />
+                            <span className="text-[11px] font-medium leading-tight text-foreground/90 line-clamp-2">{file.name}</span>
                           </div>
                         )}
                         <button
                           type="button"
                           onClick={() => removeFile(fileKey)}
-                          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-background/80 backdrop-blur text-foreground/80 hover:text-foreground border border-border/30 flex items-center justify-center"
+                          className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/50 hover:bg-destructive/80 text-white backdrop-blur-md border border-white/10 flex items-center justify-center z-20 opacity-0 group-hover/file:opacity-100 transition-all scale-75 group-hover/file:scale-100"
                           aria-label={`Remove ${file.name}`}
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     );
@@ -330,22 +332,20 @@ export default function ChatInput({ onSend, isLoading, disabled, onStop, modelNa
                           relative w-11 h-11 rounded-xl flex items-center justify-center
                           transition-all duration-300 overflow-hidden
                           ${canSend 
-                            ? 'bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30' 
+                            ? 'bg-gradient-to-br from-primary via-primary to-accent text-primary-foreground shadow-[0_0_20px_hsla(var(--primary)/0.6)] border border-primary/50' 
                             : 'bg-muted/50 text-muted-foreground/30 cursor-not-allowed'
                           }
                         `}
-                        whileHover={canSend ? { scale: 1.08, y: -2 } : {}}
-                        whileTap={canSend ? { scale: 0.92 } : {}}
+                        whileHover={canSend ? { scale: 1.1, y: -2, boxShadow: '0 0 30px hsla(var(--primary)/0.8)' } : {}}
+                        whileTap={canSend ? { scale: 0.9, rotate: -10 } : {}}
                       >
                         {canSend && (
                           <motion.div 
-                            className="absolute inset-0 bg-gradient-to-r from-transparent via-foreground/20 to-transparent"
-                            initial={{ x: '-100%' }}
-                            animate={{ x: '100%' }}
-                            transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2 }}
+                            className="absolute inset-0 bg-white/20"
+                            animate={{ opacity: [0, 0.4, 0] }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
                           />
                         )}
-                        <div className={`absolute inset-0 rounded-xl border ${canSend ? 'border-primary/50' : 'border-border/20'}`} />
                         <Send className="w-[18px] h-[18px] relative z-10" />
                       </motion.button>
                     )}

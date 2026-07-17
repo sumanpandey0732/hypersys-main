@@ -13,9 +13,9 @@ export default async function handler(req, res) {
     return;
   }
 
-  const key = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  const key = req.headers["x-gemini-api-key"] || req.headers["x-api-key"] || req.headers["authorization"]?.split(" ")[1] || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   if (!key || key === "your-gemini-key" || key.startsWith("your-")) {
-    res.status(400).json({ error: "Gemini API key is not configured. Please set VITE_GEMINI_API_KEY in your .env file." });
+    res.status(400).json({ error: "Gemini API key is not configured." });
     return;
   }
 

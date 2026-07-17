@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Search, Check } from 'lucide-react';
 import { AI_MODELS, type AIModel } from '@/components/chat/ChatSidebar';
@@ -15,32 +15,56 @@ const KIND_META: Record<AIModel['kind'], { label: string; emoji: string }> = {
   Image: { label: 'Image', emoji: '🎨' },
 };
 
-// A polished, glassy replacement for the native <select> in the chat header.
+// A polished, glassy model selector dropdown that renders above the sidebar.
 export default function ModelSelector({ selectedModel, onSelectModel }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [panelPos, setPanelPos] = useState<{ top: number; right: number } | null>(null);
 
   const active = AI_MODELS.find((m) => m.id === selectedModel) || AI_MODELS[0];
 
-  // Close on outside click / Escape.
+  // Compute the dropdown position when opening (below trigger, aligned right).
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPanelPos({
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    });
+  }, []);
+
+  // Close on outside click / Escape. Reposition on scroll/resize.
   useEffect(() => {
     if (!open) return;
+    updatePosition();
+
     const onClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      if (
+        triggerRef.current?.contains(e.target as Node) ||
+        panelRef.current?.contains(e.target as Node)
+      ) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onLayout = () => updatePosition();
+
     document.addEventListener('mousedown', onClick);
     document.addEventListener('keydown', onKey);
-    // Focus the search field when opening.
+    window.addEventListener('resize', onLayout);
+    window.addEventListener('scroll', onLayout, true);
+
     const t = setTimeout(() => searchRef.current?.focus(), 60);
     return () => {
       document.removeEventListener('mousedown', onClick);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onLayout);
+      window.removeEventListener('scroll', onLayout, true);
       clearTimeout(t);
     };
-  }, [open]);
+  }, [open, updatePosition]);
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -62,9 +86,10 @@ export default function ModelSelector({ selectedModel, onSelectModel }: ModelSel
   };
 
   return (
-    <div className="relative" ref={containerRef}>
+    <>
       {/* Trigger */}
       <motion.button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         whileTap={{ scale: 0.97 }}
@@ -81,14 +106,21 @@ export default function ModelSelector({ selectedModel, onSelectModel }: ModelSel
         <ChevronDown className={`w-4 h-4 text-foreground/50 transition-transform duration-300 ${open ? 'rotate-180 text-primary' : ''}`} />
       </motion.button>
 
+      {/* Dropdown — rendered as a fixed-position overlay so it never clips behind the sidebar */}
       <AnimatePresence>
-        {open && (
+        {open && panelPos && (
           <motion.div
+            ref={panelRef}
             initial={{ opacity: 0, y: -8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 mt-2 w-[300px] max-w-[calc(100vw-2rem)] z-50 glass-panel rounded-2xl overflow-hidden shadow-2xl"
+            className="fixed w-[320px] max-w-[calc(100vw-1rem)] glass-panel rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+            style={{
+              top: panelPos.top,
+              right: Math.max(panelPos.right, 8),
+              zIndex: 99999,
+            }}
             role="listbox"
           >
             {/* Search */}
@@ -145,6 +177,6 @@ export default function ModelSelector({ selectedModel, onSelectModel }: ModelSel
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

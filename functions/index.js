@@ -23,8 +23,9 @@ const SERPAPI_URL = "https://serpapi.com/search.json";
 // send permissive headers so the emulator / direct calls work in development.
 function setCors(res) {
   res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Api-Key, X-Nvidia-Api-Key, X-Mistral-Api-Key, X-OpenAI-Api-Key, X-Gemini-Api-Key, X-xAI-Api-Key");
+  res.set("Access-Control-Max-Age", "3600");
 }
 
 /**
@@ -92,7 +93,17 @@ export const api = onRequest(
   }
 );
 
-function getApiKey(secretObject, envVarName1, envVarName2) {
+function getApiKey(secretObject, envVarName1, envVarName2, req) {
+  if (req) {
+    const headerKey = req.headers["x-openai-api-key"] || 
+                      req.headers["x-gemini-api-key"] || 
+                      req.headers["x-xai-api-key"] || 
+                      req.headers["x-nvidia-api-key"] || 
+                      req.headers["x-mistral-api-key"] || 
+                      req.headers["x-api-key"] || 
+                      req.headers["authorization"]?.split(" ")[1];
+    if (headerKey) return headerKey.trim();
+  }
   try {
     const val = secretObject.value();
     if (val && val !== "your-key-here" && !val.startsWith("your-")) return val;
@@ -107,7 +118,7 @@ async function handleOpenAI(req, res) {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
-  const key = getApiKey(OPENAI_API_KEY, "VITE_OPENAI_API_KEY", "OPENAI_API_KEY");
+  const key = getApiKey(OPENAI_API_KEY, "VITE_OPENAI_API_KEY", "OPENAI_API_KEY", req);
   if (!key || key === "your-openai-key" || key.startsWith("your-")) {
     res.status(400).json({ error: "OpenAI API key is not configured." });
     return;
@@ -160,7 +171,7 @@ async function handleGemini(req, res) {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
-  const key = getApiKey(GEMINI_API_KEY, "VITE_GEMINI_API_KEY", "GEMINI_API_KEY");
+  const key = getApiKey(GEMINI_API_KEY, "VITE_GEMINI_API_KEY", "GEMINI_API_KEY", req);
   if (!key || key === "your-gemini-key" || key.startsWith("your-")) {
     res.status(400).json({ error: "Gemini API key is not configured." });
     return;
@@ -213,7 +224,7 @@ async function handleXAI(req, res) {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
-  const key = getApiKey(XAI_API_KEY, "VITE_XAI_API_KEY", "XAI_API_KEY");
+  const key = getApiKey(XAI_API_KEY, "VITE_XAI_API_KEY", "XAI_API_KEY", req);
   if (!key || key === "your-xai-key" || key.startsWith("your-")) {
     res.status(400).json({ error: "xAI (Grok) API key is not configured." });
     return;
@@ -273,7 +284,7 @@ async function handleMistral(req, res) {
     return;
   }
 
-  const key = getApiKey(MISTRAL_API_KEY, "VITE_MISTRAL_API_KEY", "MISTRAL_API_KEY");
+  const key = getApiKey(MISTRAL_API_KEY, "VITE_MISTRAL_API_KEY", "MISTRAL_API_KEY", req);
   const upstream = await fetch(MISTRAL_URL, {
     method: "POST",
     headers: {
@@ -386,7 +397,7 @@ async function handleNvidia(req, res) {
     return;
   }
 
-  const key = getApiKey(NVIDIA_API_KEY, "VITE_NVIDIA_API_KEY", "NVIDIA_API_KEY");
+  const key = getApiKey(NVIDIA_API_KEY, "VITE_NVIDIA_API_KEY", "NVIDIA_API_KEY", req);
   const upstream = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -395,7 +406,7 @@ async function handleNvidia(req, res) {
       Accept: "text/event-stream",
     },
     body: JSON.stringify({
-      model: model || "z-ai/glm-5.2",
+      model: model || "meta/llama-3.3-70b-instruct",
       messages,
       stream: true,
       temperature: temperature ?? 0.7,

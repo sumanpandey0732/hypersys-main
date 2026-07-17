@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, MessageSquare, Trash2, LogOut, ChevronLeft, Sparkles, Bot, ChevronDown, ChevronUp, Search, History } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, LogOut, ChevronLeft, Sparkles, Bot, ChevronDown, ChevronUp, Search, History, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { format, isToday, isYesterday, differenceInCalendarDays } from 'date-fns';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 export interface AIModel {
   id: string;
@@ -16,33 +20,48 @@ export interface AIModel {
 }
 
 export const AI_MODELS: AIModel[] = [
-  // Popular / Featured Chat Models
-  { id: 'nv-deepseek', name: 'DeepSeek V4 Pro', label: 'DeepSeek', description: 'Deep reasoning & logic (slower)', emoji: '🧠', kind: 'Chat', featured: true },
-  { id: 'nv-llama33-70b', name: 'Llama 3.3 70B', label: 'Llama 3.3', description: 'Meta flagship instruct model', emoji: '🦙', kind: 'Chat', featured: true },
-  { id: 'ms-large', name: 'Mistral Large', label: 'Mistral Large', description: 'Mistral flagship reasoning', emoji: '🇫🇷', kind: 'Chat', featured: true },
-  { id: 'default', name: 'Aetheris', label: 'Aetheris', description: 'Balanced flagship assistant', emoji: '✨', kind: 'Chat', featured: true },
-  { id: 'nv-glm', name: 'GLM 5.2', label: 'GLM', description: 'Fast general language model', emoji: '🧬', kind: 'Chat', featured: true },
+  // ── Featured Chat / Reasoning Models ──────────
+  { id: 'glm-5.2', name: 'GLM 5.2', label: 'GLM 5.2', description: 'Fast flagship chat (Default)', emoji: '🧬', kind: 'Chat', featured: true },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', label: 'DeepSeek V4', description: 'Latest DeepSeek flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },
+  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', label: 'DeepSeek V4 Flash', description: 'Fast DeepSeek V4 reasoning', emoji: '⚡', kind: 'Chat', featured: true },
+  { id: 'kimi-k2.6', name: 'Kimi K2.6', label: 'Kimi K2.6', description: 'Moonshot AI advanced reasoning', emoji: '🌙', kind: 'Chat', featured: true },
+  { id: 'minimax-m3', name: 'MiniMax M3', label: 'MiniMax M3', description: 'MiniMax flagship chat model', emoji: '🚀', kind: 'Chat', featured: true },
+  { id: 'qwen-3.5-397b', name: 'Qwen 3.5 397B', label: 'Qwen 3.5 397B', description: 'Massive MoE reasoning giant', emoji: '🔮', kind: 'Chat', featured: true },
+  { id: 'qwen-3-next-80b', name: 'Qwen 3 Next 80B', label: 'Qwen 3 80B', description: 'Qwen 3 Next generation reasoning', emoji: '👑', kind: 'Chat', featured: true },
+  { id: 'mistral-large-3', name: 'Mistral Large 3', label: 'Mistral Large 3', description: 'Mistral AI latest flagship', emoji: '🇫🇷', kind: 'Chat', featured: true },
+  { id: 'cosmos-reason', name: 'Cosmos Reason', label: 'Cosmos Reason', description: 'Spatial & physics reasoning', emoji: '🌌', kind: 'Chat', featured: true },
+  { id: 'llama-70b', name: 'Llama 3.3 70B', label: 'Llama 3.3', description: 'Meta flagship instruct model', emoji: '🦙', kind: 'Chat', featured: true },
+  { id: 'llama-405b', name: 'Llama 405B', label: 'Llama 405B', description: 'Meta largest open model', emoji: '🐘', kind: 'Chat', featured: true },
+  { id: 'nemotron-70b', name: 'Nemotron 70B', label: 'Nemotron 70B', description: 'NVIDIA flagship reasoning', emoji: '🦁', kind: 'Chat', featured: true },
+  { id: 'gpt-oss-120b', name: 'GPT-OSS 120B', label: 'GPT-OSS 120B', description: 'OpenAI GPT Open Source 120B', emoji: '🌐', kind: 'Chat', featured: true },
 
-  // More Chat Models
-  { id: 'nv-deepseek-flash', name: 'DeepSeek V4 Flash', label: 'DeepSeek Flash', description: 'Fast reasoning model', emoji: '💨', kind: 'Chat', featured: false },
-  { id: 'nv-kimi', name: 'Kimi K2.6', label: 'Kimi', description: 'Long-context chat', emoji: '🌙', kind: 'Chat', featured: false },
-  { id: 'ms-codestral', name: 'Codestral', label: 'Codestral', description: 'Mistral coding specialist', emoji: '💻', kind: 'Chat', featured: false },
-  { id: 'nv-minimax', name: 'MiniMax M3', label: 'MiniMax', description: 'Advanced MoE reasoning', emoji: '⚡', kind: 'Chat', featured: false },
-  { id: 'nv-qwen35-397b', name: 'Qwen 3.5 397B', label: 'Qwen 397B', description: 'Massive language model', emoji: '🔮', kind: 'Chat', featured: false },
-  { id: 'ms-small', name: 'Mistral Small', label: 'Mistral Small', description: 'Fast, low-cost Mistral', emoji: '🥐', kind: 'Chat', featured: false },
-  { id: 'ms-nemo', name: 'Mistral Nemo', label: 'Mistral Nemo', description: 'Compact multilingual model', emoji: '🔷', kind: 'Chat', featured: false },
-  { id: 'nv-qwen3-next', name: 'Qwen3 Next 80B', label: 'Qwen Next', description: 'Efficient large model', emoji: '🌀', kind: 'Chat', featured: false },
+  // ── More Chat Models ──────────────────────────
+  { id: 'llama-maverick', name: 'Llama Maverick 17B', label: 'Maverick', description: 'Llama 4 Maverick Instruct', emoji: '🔥', kind: 'Chat', featured: false },
+  { id: 'llama-8b', name: 'Llama 3.1 8B', label: 'Llama 8B', description: 'Fast Meta Instruct', emoji: '🦙', kind: 'Chat', featured: false },
+  { id: 'llama-3b', name: 'Llama 3.2 3B', label: 'Llama 3B', description: 'Lightweight Meta Instruct', emoji: '🦙', kind: 'Chat', featured: false },
+  { id: 'mistral-large', name: 'Mistral Large 2', label: 'Mistral Large 2', description: 'Mistral legacy flagship reasoning', emoji: '🇫🇷', kind: 'Chat', featured: false },
+  { id: 'mixtral-8x22b', name: 'Mixtral 8x22B', label: 'Mixtral 8x22B', description: 'Mistral Sparse MoE', emoji: '🌪️', kind: 'Chat', featured: false },
+  { id: 'gemma-2-27b', name: 'Gemma 2 27B', label: 'Gemma 2 27B', description: 'Efficient instruction model', emoji: '♊', kind: 'Chat', featured: false },
+  { id: 'gemma-3-31b', name: 'Gemma 3 31B', label: 'Gemma 3 31B', description: 'Google latest reasoning model', emoji: '💎', kind: 'Chat', featured: false },
+  { id: 'gemma-3-12b', name: 'Gemma 3 12B', label: 'Gemma 3 12B', description: 'Google mid-tier reasoning model', emoji: '✨', kind: 'Chat', featured: false },
+  { id: 'phi-3.5-moe', name: 'Phi-3.5 MoE', label: 'Phi-3.5 MoE', description: 'Microsoft advanced MoE', emoji: '🌀', kind: 'Chat', featured: false },
+  { id: 'deepseek-coder', name: 'DeepSeek Coder 6.7B', label: 'DS Coder', description: 'Advanced coding specialist', emoji: '💻', kind: 'Chat', featured: false },
+  { id: 'codestral', name: 'Codestral 22B', label: 'Codestral', description: 'Mistral coding specialist', emoji: '🥐', kind: 'Chat', featured: false },
+  { id: 'mistral-nemo', name: 'Mistral Nemo', label: 'Mistral Nemo', description: 'Compact multilingual model', emoji: '🔱', kind: 'Chat', featured: false },
+  { id: 'yi-large', name: 'Yi Large', label: 'Yi Large', description: '01.AI Large Language Model', emoji: '🐉', kind: 'Chat', featured: false },
+  { id: 'dbrx-instruct', name: 'DBRX Instruct', label: 'DBRX Instruct', description: 'Databricks MoE Instruct', emoji: '🧊', kind: 'Chat', featured: false },
 
-  // Vision Models
-  { id: 'nv-llama32-11b-vision', name: 'Llama 3.2 Vision', label: 'Llama Vision', description: 'Analyze & describe images', emoji: '👁️', kind: 'Vision', featured: true },
-  { id: 'nv-llama32-90b-vision', name: 'Llama 3.2 90B Vision', label: 'Llama 90B Vision', description: 'High-detail image understanding', emoji: '🔬', kind: 'Vision', featured: false },
-  { id: 'nv-cosmos-reason', name: 'Cosmos Reason 8B', label: 'Cosmos', description: 'Visual reasoning model', emoji: '🌌', kind: 'Vision', featured: false },
-  { id: 'nv-nemotron-vl', name: 'Nemotron Nano VL', label: 'Nemotron VL', description: 'Efficient vision processing', emoji: '🦁', kind: 'Vision', featured: false },
+  // ── Vision Models ─────────────────────────────
+  { id: 'llama-vision', name: 'Llama 3.2 11B Vision', label: 'Llama Vision', description: 'Analyze & describe images', emoji: '👁️', kind: 'Vision', featured: true },
+  { id: 'nemotron-vl', name: 'Nemotron Nano VL 8B', label: 'Nemotron VL', description: 'Quick vision processing', emoji: '🦁', kind: 'Vision', featured: true },
+  { id: 'nemoretriever', name: 'NemoRetriever Parse', label: 'NemoRetriever', description: 'Document parsing & analysis', emoji: '📄', kind: 'Vision', featured: true },
+  { id: 'llama-90b-vision', name: 'Llama 3.2 90B Vision', label: 'Llama 90B Vision', description: 'High-detail image analysis', emoji: '🔬', kind: 'Vision', featured: false },
 
-  // Image Generation Models
-  { id: 'nv-qwen-image', name: 'Image Studio', label: 'Image Studio', description: 'Generate images from text', emoji: '🎨', kind: 'Image', featured: true },
-  { id: 'nv-sd35-large', name: 'Photoreal', label: 'Photoreal', description: 'Detailed photorealistic images', emoji: '🖼️', kind: 'Image', featured: false },
-  { id: 'nv-flux2-klein', name: 'Artistic', label: 'Artistic', description: 'Creative & stylized images', emoji: '🎈', kind: 'Image', featured: false },
+  // ── Image Generation Models ───────────────────
+  { id: 'qwen-image', name: 'Qwen Image', label: 'Qwen Image', description: 'Generate images from text', emoji: '🎨', kind: 'Image', featured: true },
+  { id: 'sd-3.5-large', name: 'FLUX', label: 'FLUX', description: 'Photorealistic image generation', emoji: '🖼️', kind: 'Image', featured: true },
+  { id: 'flux2-klein', name: 'FLUX Klein', label: 'FLUX Klein', description: 'Fast stylized images', emoji: '⚡', kind: 'Image', featured: true },
+  { id: 'qwen-image-edit', name: 'Image Edit', label: 'Image Edit', description: 'AI-powered image editing', emoji: '✏️', kind: 'Image', featured: false },
 ];
 
 
@@ -76,6 +95,34 @@ export default function ChatSidebar({
   const [showAllModels, setShowAllModels] = useState(false);
   const [modelPanelOpen, setModelPanelOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Settings State for API Keys (NVIDIA + Mistral only)
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [nvidiaKey, setNvidiaKey] = useState(() => localStorage.getItem('VITE_NVIDIA_API_KEY') || '');
+  const [mistralKey, setMistralKey] = useState(() => localStorage.getItem('VITE_MISTRAL_API_KEY') || '');
+
+  // Re-sync with localStorage when dialog opens
+  useEffect(() => {
+    if (settingsOpen) {
+      setNvidiaKey(localStorage.getItem('VITE_NVIDIA_API_KEY') || '');
+      setMistralKey(localStorage.getItem('VITE_MISTRAL_API_KEY') || '');
+    }
+  }, [settingsOpen]);
+
+  const handleSaveKeys = () => {
+    if (nvidiaKey.trim()) {
+      localStorage.setItem('VITE_NVIDIA_API_KEY', nvidiaKey.trim());
+    } else {
+      localStorage.removeItem('VITE_NVIDIA_API_KEY');
+    }
+    if (mistralKey.trim()) {
+      localStorage.setItem('VITE_MISTRAL_API_KEY', mistralKey.trim());
+    } else {
+      localStorage.removeItem('VITE_MISTRAL_API_KEY');
+    }
+    setSettingsOpen(false);
+    toast.success('API keys updated successfully!');
+  };
 
   const selectedModelMeta = AI_MODELS.find((m) => m.id === selectedModel) || AI_MODELS[0];
 
@@ -132,9 +179,15 @@ export default function ChatSidebar({
             </div>
           </div>
 
-          <div className="p-4 space-y-3 flex-shrink-0">
-            <Button onClick={onNewConversation} className="w-full liquid-control text-primary border border-primary/20 justify-start gap-3 py-5">
-              <Plus className="w-5 h-5" /> New Chat
+          <div className="p-4 space-y-4 flex-shrink-0">
+            <Button 
+              onClick={onNewConversation} 
+              className="w-full liquid-control text-primary justify-start gap-3 py-6 px-5 font-semibold tracking-wide"
+            >
+              <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/20 group-hover:bg-primary/30 transition-colors">
+                <Plus className="w-4 h-4 text-primary" />
+              </div>
+              <span className="text-sm">New Chat</span>
             </Button>
 
             {/* Model Selector — collapsible so History always has room.
@@ -143,17 +196,19 @@ export default function ChatSidebar({
               <button
                 type="button"
                 onClick={() => setModelPanelOpen((v) => !v)}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-sidebar-border/50 bg-sidebar-accent/20 hover:bg-sidebar-accent/40 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-sidebar-border/50 bg-sidebar-accent/10 hover:bg-sidebar-accent/30 transition-all duration-300 group"
                 aria-expanded={modelPanelOpen}
               >
-                <Bot className="w-4 h-4 text-primary/70 flex-shrink-0" />
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <Bot className="w-4 h-4 text-primary/80" />
+                </div>
                 <span className="flex flex-col items-start min-w-0 flex-1">
-                  <span className="text-[10px] font-medium text-sidebar-foreground/45 uppercase tracking-wider leading-none">AI Model</span>
-                  <span className="text-sm font-semibold text-sidebar-foreground truncate max-w-full mt-0.5">
+                  <span className="text-[10px] font-bold text-sidebar-foreground/50 uppercase tracking-widest leading-none mb-1">AI Model</span>
+                  <span className="text-sm font-semibold text-sidebar-foreground truncate max-w-full">
                     {selectedModelMeta.emoji} {selectedModelMeta.label}
                   </span>
                 </span>
-                <ChevronDown className={`w-4 h-4 text-sidebar-foreground/50 transition-transform duration-300 flex-shrink-0 ${modelPanelOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-sidebar-foreground/50 transition-transform duration-300 flex-shrink-0 ${modelPanelOpen ? 'rotate-180 text-primary' : 'group-hover:text-primary/70'}`} />
               </button>
 
               <AnimatePresence initial={false}>
@@ -300,6 +355,9 @@ export default function ChatSidebar({
                   <p className="text-xs text-sidebar-foreground/40 truncate">{user.email}</p>
                 )}
               </div>
+              <button onClick={() => setSettingsOpen(true)} className="p-2 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground transition-all duration-200" title="API Settings">
+                <Settings className="w-4 h-4 hover:rotate-45 transition-transform" />
+              </button>
               <button onClick={() => signOut()} className="p-2 rounded-lg hover:bg-destructive/20 text-sidebar-foreground/60 hover:text-destructive transition-colors" title="Sign out">
                 <LogOut className="w-4 h-4" />
               </button>
@@ -307,6 +365,78 @@ export default function ChatSidebar({
           </div>
         </div>
       </motion.aside>
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-[425px] border-white/10 bg-background/95 backdrop-blur-xl text-foreground rounded-2xl shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary animate-[spin_8s_linear_infinite]" />
+              Configure API Keys
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground/80 text-xs">
+              Provide your own API keys for NVIDIA NIM and Mistral AI. These keys are stored safely on your device and never sent to external servers other than the API proxy endpoints.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="nvidia-key" className="text-sm font-semibold text-foreground/80 flex items-center gap-1.5">
+                🧠 NVIDIA API Key
+              </Label>
+              <Input
+                id="nvidia-key"
+                type="password"
+                placeholder="nvapi-..."
+                value={nvidiaKey}
+                onChange={(e) => setNvidiaKey(e.target.value)}
+                className="bg-secondary/40 border-border/40 focus:border-primary/40 focus:ring-primary/20 text-sm placeholder:text-muted-foreground/30 rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mistral-key" className="text-sm font-semibold text-foreground/80 flex items-center gap-1.5">
+                🇫🇷 Mistral API Key
+              </Label>
+              <Input
+                id="mistral-key"
+                type="password"
+                placeholder="Enter Mistral API Key"
+                value={mistralKey}
+                onChange={(e) => setMistralKey(e.target.value)}
+                className="bg-secondary/40 border-border/40 focus:border-primary/40 focus:ring-primary/20 text-sm placeholder:text-muted-foreground/30 rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0 border-t border-border/30 pt-4 mt-2">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => {
+                setNvidiaKey('');
+                setMistralKey('');
+              }}
+              className="bg-destructive/10 hover:bg-destructive/20 border-destructive/20 text-destructive text-xs h-9 rounded-xl transition-all duration-200 mr-auto"
+            >
+              Clear Keys
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => setSettingsOpen(false)}
+                className="hover:bg-secondary/60 text-xs h-9 border border-border/40 rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveKeys}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold h-9 rounded-xl transition-all duration-200"
+              >
+                Save Keys
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -13,9 +13,9 @@ export default async function handler(req, res) {
     return;
   }
 
-  const key = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  const key = req.headers["x-openai-api-key"] || req.headers["x-api-key"] || req.headers["authorization"]?.split(" ")[1] || process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
   if (!key || key === "your-openai-key" || key.startsWith("your-")) {
-    res.status(400).json({ error: "OpenAI API key is not configured. Please set VITE_OPENAI_API_KEY in your .env file." });
+    res.status(400).json({ error: "OpenAI API key is not configured." });
     return;
   }
 

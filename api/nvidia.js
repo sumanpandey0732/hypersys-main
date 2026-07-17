@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const key = process.env.VITE_NVIDIA_API_KEY || process.env.NVIDIA_API_KEY;
+  const key = req.headers["x-nvidia-api-key"] || req.headers["x-api-key"] || req.headers["authorization"]?.split(" ")[1] || process.env.VITE_NVIDIA_API_KEY || process.env.NVIDIA_API_KEY;
   if (!key) {
     res.status(500).json({ error: "NVIDIA_API_KEY is not configured" });
     return;
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
       Accept: "text/event-stream",
     },
     body: JSON.stringify({
-      model: model || "z-ai/glm-5.2",
+      model: model || "meta/llama-3.3-70b-instruct",
       messages,
       stream: true,
       temperature: temperature ?? 0.7,

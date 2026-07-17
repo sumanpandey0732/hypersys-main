@@ -115,11 +115,105 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [selectedModel, setSelectedModel] = useState('default');
+  const [selectedModel, setSelectedModel] = useState('glm-5.2');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isNewConversationRef = useRef(false);
+
+  const [streak, setStreak] = useState<number>(() => {
+    return parseInt(localStorage.getItem('aetheris_chat_streak') || '0', 10);
+  });
+
+  const updateStreak = () => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const lastDate = localStorage.getItem('aetheris_last_chat_date');
+    const currentStreak = parseInt(localStorage.getItem('aetheris_chat_streak') || '0', 10);
+
+    if (!lastDate) {
+      localStorage.setItem('aetheris_chat_streak', '1');
+      localStorage.setItem('aetheris_last_chat_date', today);
+      setStreak(1);
+    } else if (lastDate === today) {
+      if (currentStreak === 0) {
+        localStorage.setItem('aetheris_chat_streak', '1');
+        setStreak(1);
+      }
+    } else {
+      const lastChatDate = new Date(lastDate);
+      const todayDate = new Date(today);
+      const diffTime = Math.abs(todayDate.getTime() - lastChatDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        const newStreak = currentStreak + 1;
+        localStorage.setItem('aetheris_chat_streak', newStreak.toString());
+        localStorage.setItem('aetheris_last_chat_date', today);
+        setStreak(newStreak);
+        toast.success(`Streak extended! You're on a ${newStreak}-day streak 🔥`);
+      } else {
+        localStorage.setItem('aetheris_chat_streak', '1');
+        localStorage.setItem('aetheris_last_chat_date', today);
+        setStreak(1);
+      }
+    }
+  };
+
+  const createSparkleBurst = () => {
+    const sendBtn = document.querySelector('button[aria-label="Send message"]');
+    let x = window.innerWidth / 2;
+    let y = window.innerHeight - 80;
+
+    if (sendBtn) {
+      const rect = sendBtn.getBoundingClientRect();
+      x = rect.left + rect.width / 2;
+      y = rect.top + rect.height / 2;
+    } else {
+      const inputEl = document.querySelector('textarea');
+      if (inputEl) {
+        const rect = inputEl.getBoundingClientRect();
+        x = rect.right - 20;
+        y = rect.top + rect.height / 2;
+      }
+    }
+
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = `${x}px`;
+    container.style.top = `${y}px`;
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+
+    const colors = ['#1ad1b9', '#258eff', '#984cff', '#ff2d74', '#ff8f1f', '#1cb866'];
+    for (let i = 0; i < 20; i++) {
+      const particle = document.createElement('div');
+      particle.style.position = 'absolute';
+      particle.style.width = `${Math.random() * 8 + 4}px`;
+      particle.style.height = particle.style.width;
+      particle.style.borderRadius = '50%';
+      particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      particle.style.boxShadow = `0 0 10px ${particle.style.backgroundColor}`;
+      
+      const angle = Math.random() * Math.PI * 2;
+      const velocity = Math.random() * 90 + 40;
+      const dx = Math.cos(angle) * velocity;
+      const dy = Math.sin(angle) * velocity;
+
+      particle.animate([
+        { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) scale(0)`, opacity: 0 }
+      ], {
+        duration: Math.random() * 600 + 500,
+        easing: 'cubic-bezier(0.1, 0.8, 0.3, 1)',
+        fill: 'forwards'
+      });
+
+      container.appendChild(particle);
+    }
+
+    setTimeout(() => container.remove(), 1200);
+  };
 
 
   const loadConversations = useCallback(async () => {
@@ -219,6 +313,9 @@ export default function Chat() {
 
   const handleSendMessage = async (content: string, files: File[] = []) => {
     if ((!content.trim() && files.length === 0) || isLoading) return;
+
+    createSparkleBurst();
+    updateStreak();
 
     const trimmedContent = content.trim();
     const pendingAttachments: ChatAttachment[] = await Promise.all(
@@ -395,9 +492,7 @@ export default function Chat() {
         }
       }
 
-      if (convId && isAuthenticated && activeConversationId !== convId) {
-        setActiveConversationId(convId);
-      }
+
 
       if (isAuthenticated) loadConversations();
     } catch (error) {
@@ -542,6 +637,27 @@ export default function Chat() {
           </div>
 
           <div className="relative flex items-center gap-3 flex-shrink-0">
+            {/* Daily Streak widget */}
+            {streak > 0 && (
+              <motion.div
+                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-rose-500/15 border border-orange-500/20 rounded-xl px-3 py-1.5 backdrop-blur-md select-none cursor-default group"
+                whileHover={{ scale: 1.05, boxShadow: '0 0 12px rgba(249, 115, 22, 0.25)', borderColor: 'rgba(249, 115, 22, 0.4)' }}
+                transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                title="Your daily chat streak! Send a message every day to extend your streak."
+              >
+                <motion.span
+                  animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 1.5 }}
+                  className="text-sm select-none filter drop-shadow-[0_0_4px_rgba(249,115,22,0.4)]"
+                >
+                  🔥
+                </motion.span>
+                <span className="text-xs font-bold bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 bg-clip-text text-transparent group-hover:brightness-110 transition-all font-mono">
+                  {streak} DAY{streak > 1 ? 'S' : ''} STREAK
+                </span>
+              </motion.div>
+            )}
+
             {/* Accent Color Switcher */}
             <div className="hidden sm:flex items-center gap-1.5 bg-secondary/40 border border-border/30 rounded-xl p-1.5 backdrop-blur-md">
               {[
