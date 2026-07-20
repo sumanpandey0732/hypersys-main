@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npm ls *)",
-      "Bash(timeout 150 npx vite build)"
+      "Bash(timeout 150 npx vite build)",
+      "Bash(npm run *)"
     ]
   }
 }

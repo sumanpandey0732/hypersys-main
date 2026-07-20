@@ -2,13 +2,12 @@
 // Runs a SerpApi Google search server-side and returns condensed results.
 // Set SERPAPI_API_KEY in the Vercel project env (see `vercel env add`).
 
+import { applyGuard } from "./_guard.js";
+
 const SERPAPI_URL = "https://serpapi.com/search.json";
 
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
+  if (applyGuard(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

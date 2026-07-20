@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Sparkles, Mic, Square, Loader2, ImagePlus, X, FileText } from 'lucide-react';
-import { useElevenLabsSTT } from '@/hooks/useElevenLabsSTT';
+import { toast } from 'sonner';
+import { useSpeechToText } from '@/hooks/useSpeechToText';
 
 interface ChatInputProps {
   onSend: (message: string, files?: File[]) => void;
@@ -19,7 +20,22 @@ export default function ChatInput({ onSend, isLoading, disabled, onStop, modelNa
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { startRecording, stopRecording, isRecording, isProcessing } = useElevenLabsSTT();
+  const { start, stop, isListening, isSupported } = useSpeechToText({
+    onResult: (text) => {
+      setMessage((prev) => (prev ? `${prev} ${text}` : text));
+    },
+    onError: (err) => {
+      if (err === 'not-allowed' || err === 'service-not-allowed') {
+        toast.error('Microphone access was blocked. Enable it in your browser settings.');
+      } else if (err !== 'aborted' && err !== 'no-speech') {
+        toast.error('Voice input failed. Please try again.');
+      }
+    },
+  });
+
+  // Keep the recording flag name the UI already animates on.
+  const isRecording = isListening;
+  const isProcessing = false;
 
   const previews = useMemo(
     () => selectedFiles.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -49,22 +65,15 @@ export default function ChatInput({ onSend, isLoading, disabled, onStop, modelNa
     }
   }, [message]);
 
-  const handleVoiceClick = async () => {
+  const handleVoiceClick = () => {
+    if (!isSupported) {
+      toast.error("Voice input isn't supported in this browser. Try Chrome or Edge.");
+      return;
+    }
     if (isRecording) {
-      try {
-        const transcript = await stopRecording();
-        if (transcript) {
-          setMessage(prev => (prev ? `${prev} ${transcript}` : transcript));
-        }
-      } catch (error) {
-        console.error("STT error:", error);
-      }
+      stop();
     } else {
-      try {
-        await startRecording();
-      } catch (error) {
-        console.error("Failed to start recording:", error);
-      }
+      start();
     }
   };
 
@@ -267,7 +276,8 @@ export default function ChatInput({ onSend, isLoading, disabled, onStop, modelNa
                     <ImagePlus className="w-[18px] h-[18px]" />
                   </motion.button>
 
-                {/* Voice button - ElevenLabs powered */}
+                {/* Voice button - browser Web Speech API (live transcription) */}
+                {isSupported && (
                 <motion.button
                   type="button"
                   onClick={handleVoiceClick}
@@ -301,6 +311,7 @@ export default function ChatInput({ onSend, isLoading, disabled, onStop, modelNa
                     <Mic className="w-[18px] h-[18px]" />
                   )}
                 </motion.button>
+                )}
 
                   {/* Send/Stop button */}
                   <AnimatePresence mode="wait">

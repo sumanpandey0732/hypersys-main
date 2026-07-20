@@ -143,12 +143,13 @@ export const firestoreDb = {
     return msgRef.id;
   },
 
-  // Delete conversation and all its messages
+  // Delete a conversation and all its messages.
+  // IMPORTANT: delete the messages FIRST. The security rule for deleting a
+  // message calls ownsConversation(), which get()s the parent conversation
+  // doc — if the conversation is already gone, every message delete is denied
+  // and the messages are orphaned. So messages must go while the parent lives.
   async deleteConversation(conversationId: string): Promise<void> {
-    // Delete conversation doc
-    await deleteDoc(doc(db, 'conversations', conversationId));
-
-    // Batch delete messages to keep DB clean
+    // Batch delete messages while the parent conversation still exists.
     const q = query(collection(db, 'messages'), where('conversationId', '==', conversationId));
     const snapshot = await getDocs(q);
 
@@ -159,6 +160,9 @@ export const firestoreDb = {
       });
       await batch.commit();
     }
+
+    // Now remove the conversation doc itself.
+    await deleteDoc(doc(db, 'conversations', conversationId));
   },
 
   // Update the active model on a conversation

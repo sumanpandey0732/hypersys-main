@@ -1,13 +1,12 @@
 // Vercel serverless function: POST /api/xai
 // Streams a Grok chat completion (SSE) so the API key stays server-side.
 
+import { applyGuard } from "./_guard.js";
+
 const XAI_URL = "https://api.x.ai/v1/chat/completions";
 
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
+  if (applyGuard(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

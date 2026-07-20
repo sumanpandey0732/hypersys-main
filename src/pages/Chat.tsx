@@ -6,13 +6,19 @@ import ChatMessage from '@/components/chat/ChatMessage';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
 import WelcomeScreen from '@/components/chat/WelcomeScreen';
-import { generateChatResponse, generateImageResponse, isVisionModel, SLOW_MODEL_IDS, type ChatMessage as AiChatMessage } from '@/lib/ai';
+import { generateChatResponse, generateImageResponse, isVisionModel, type ChatMessage as AiChatMessage } from '@/lib/ai';
 import { shouldWebSearch, webSearch, buildSearchContext } from '@/lib/search';
 import type { ChatAttachment } from '@/components/chat/types';
 import { Menu, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { extractFirstMarkdownImage, isImageGenerationRequest, sanitizeAssistantText } from '@/lib/chat-format';
+
+interface ArenaResponse {
+  modelId: string;
+  modelName: string;
+  content: string;
+}
 
 interface Message {
   id: string;
@@ -21,6 +27,9 @@ interface Message {
   imageUrl?: string;
   attachments?: ChatAttachment[];
   modelName?: string;
+  // Arena Mode
+  isArenaMode?: boolean;
+  arenaResponses?: ArenaResponse[];
 }
 
 interface Conversation {
@@ -33,7 +42,7 @@ interface Conversation {
 
 const REQUEST_TIMEOUT_MS = 60_000;
 const SLOW_REQUEST_TIMEOUT_MS = 120_000;
-const DEFAULT_VISION_MODEL = 'nv-llama32-11b-vision';
+const DEFAULT_VISION_MODEL = 'llama-vision';
 
 const compressImage = (file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -115,7 +124,12 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [selectedModel, setSelectedModel] = useState('glm-5.2');
+  const [selectedModel, setSelectedModel] = useState('llama-8b');
+  
+  // Arena Mode state
+  const [isArenaMode, setIsArenaMode] = useState(false);
+  const [compareModels, setCompareModels] = useState<string[]>(['llama-8b']);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -257,12 +271,15 @@ export default function Chat() {
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
-  // Restore the selected model when switching conversations
+  // Restore the selected model when switching conversations. Older chats may
+  // reference a model that has since been removed from the catalog — fall back
+  // to the default so we never re-select an ID that no longer responds.
   useEffect(() => {
     if (activeConversationId) {
       const activeConv = conversations.find(c => c.id === activeConversationId);
       if (activeConv?.modelId) {
-        setSelectedModel(activeConv.modelId);
+        const isKnown = AI_MODELS.some(m => m.id === activeConv.modelId);
+        setSelectedModel(isKnown ? activeConv.modelId : 'llama-8b');
       }
     }
   }, [activeConversationId, conversations]);
@@ -401,9 +418,7 @@ export default function Chat() {
 
     const timeoutMs = isImageGen
       ? SLOW_REQUEST_TIMEOUT_MS
-      : SLOW_MODEL_IDS.has(effectiveModelId)
-        ? SLOW_REQUEST_TIMEOUT_MS
-        : REQUEST_TIMEOUT_MS;
+      : REQUEST_TIMEOUT_MS;
 
     let timeoutReached = false;
     let receivedAssistantContent = false;
@@ -454,28 +469,89 @@ export default function Chat() {
           }
         }
 
-        await generateChatResponse(
-          messagesForModel,
-          effectiveModelId,
-          (delta) => {
-            fullContent += delta;
-            receivedAssistantContent = true;
-            const liveContent = sanitizeAssistantText(fullContent) || fullContent;
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: liveContent } : m)),
-            );
-          },
-          abortControllerRef.current.signal
+        const selectedModelMeta = AI_MODELS.find((model) => model.id === selectedModel) || AI_MODELS[0];
+        // Arena mode is disabled for image generation requests
+        const activeArenaMode = isArenaMode && !isImageGen;
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMessage.id
+              ? {
+                  ...m,
+                  isArenaMode: activeArenaMode,
+                  arenaResponses: activeArenaMode 
+                    ? compareModels.map(modelId => ({ 
+                        modelId, 
+                        modelName: AI_MODELS.find(x => x.id === modelId)?.name || 'AI', 
+                        content: '' 
+                      }))
+                    : undefined,
+                }
+              : m
+          )
         );
 
-        const cleaned = sanitizeAssistantText(fullContent);
+        const runPrimary = async () => {
+          let fullContent = '';
+          await generateChatResponse(
+            messagesForModel,
+            effectiveModelId,
+            (delta) => {
+              fullContent += delta;
+              receivedAssistantContent = true;
+              const liveContent = sanitizeAssistantText(fullContent) || fullContent;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: liveContent } : m)),
+              );
+            },
+            abortControllerRef.current!.signal
+          );
+          return sanitizeAssistantText(fullContent);
+        };
+
+        const secondaryPromises = activeArenaMode ? compareModels.map(async (modelId) => {
+          let fullContent2 = '';
+          await generateChatResponse(
+            messagesForModel, 
+            modelId,
+            (delta) => {
+              fullContent2 += delta;
+              const liveContent2 = sanitizeAssistantText(fullContent2) || fullContent2;
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantMessage.id || !m.arenaResponses) return m;
+                  return {
+                    ...m,
+                    arenaResponses: m.arenaResponses.map(ar => 
+                      ar.modelId === modelId ? { ...ar, content: liveContent2 } : ar
+                    )
+                  };
+                })
+              );
+            },
+            abortControllerRef.current!.signal
+          );
+          return sanitizeAssistantText(fullContent2);
+        }) : [];
+
+        const [cleaned, ...secondaryResults] = await Promise.all([runPrimary(), ...secondaryPromises]);
 
         if (cleaned) {
           const finalText = usedVisionFallback
             ? `${cleaned}\n\n*🔎 Analyzed with ${AI_MODELS.find(m => m.id === DEFAULT_VISION_MODEL)?.name || 'a vision model'} since ${selectedModelMeta.name} can't read images.*`
             : cleaned;
+            
           setMessages((prev) =>
-            prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: finalText } : m)),
+            prev.map((m) => {
+              if (m.id !== assistantMessage.id) return m;
+              return { 
+                ...m, 
+                content: finalText,
+                arenaResponses: activeArenaMode && m.arenaResponses
+                  ? m.arenaResponses.map((ar, i) => ({ ...ar, content: secondaryResults[i] || ar.content }))
+                  : undefined
+              };
+            })
           );
 
           if (convId && isAuthenticated) {
@@ -486,9 +562,6 @@ export default function Chat() {
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: fallback } : m)),
           );
-          if (convId && isAuthenticated) {
-            await saveMessage(convId, 'assistant', fallback, selectedModelMeta.name);
-          }
         }
       }
 
@@ -658,6 +731,18 @@ export default function Chat() {
               </motion.div>
             )}
 
+            {/* Arena Mode Toggle */}
+            <div className="hidden md:flex items-center gap-1.5 bg-secondary/40 border border-border/30 rounded-xl p-1.5 backdrop-blur-md">
+              <button
+                onClick={() => setIsArenaMode(!isArenaMode)}
+                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${isArenaMode ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_12px_hsla(var(--primary)/0.3)]' : 'hover:bg-secondary/80 text-foreground/70'}`}
+                title="AI Fiesta: Side-by-side comparison"
+              >
+                <span className="text-sm">⚔️</span>
+                ARENA
+              </button>
+            </div>
+
             {/* Accent Color Switcher */}
             <div className="hidden sm:flex items-center gap-1.5 bg-secondary/40 border border-border/30 rounded-xl p-1.5 backdrop-blur-md">
               {[
@@ -678,7 +763,42 @@ export default function Chat() {
               ))}
             </div>
 
-            <ModelSelector selectedModel={selectedModel} onSelectModel={handleSelectModel} />
+            <div className="flex items-center gap-2">
+              <ModelSelector selectedModel={selectedModel} onSelectModel={handleSelectModel} />
+              <AnimatePresence>
+                {isArenaMode && compareModels.map((mId, idx) => (
+                  <motion.div key={`compare-${idx}`} initial={{ opacity: 0, width: 0, scale: 0.8 }} animate={{ opacity: 1, width: 'auto', scale: 1 }} exit={{ opacity: 0, width: 0, scale: 0.8 }} transition={{ duration: 0.3 }} className="flex items-center gap-2 overflow-hidden">
+                    <span className="text-muted-foreground/40 text-xs font-bold uppercase tracking-wider">VS</span>
+                    <ModelSelector 
+                      selectedModel={mId} 
+                      onSelectModel={(newId) => {
+                        const newModels = [...compareModels];
+                        newModels[idx] = newId;
+                        setCompareModels(newModels);
+                      }} 
+                    />
+                    <button 
+                      onClick={() => setCompareModels(prev => prev.filter((_, i) => i !== idx))}
+                      className="w-5 h-5 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-all flex-shrink-0"
+                      title="Remove model"
+                    >
+                      <span className="text-xs leading-none">×</span>
+                    </button>
+                  </motion.div>
+                ))}
+                {isArenaMode && compareModels.length < 4 && (
+                  <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="flex-shrink-0 ml-1">
+                    <button
+                      onClick={() => setCompareModels(prev => [...prev, 'llama-8b'])}
+                      className="w-7 h-7 rounded-xl border border-dashed border-border hover:border-primary/50 text-muted-foreground hover:text-primary transition-colors flex items-center justify-center"
+                      title="Add another model"
+                    >
+                      <span className="text-lg leading-none">+</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
 
@@ -702,7 +822,7 @@ export default function Chat() {
             ) : messages.length === 0 ? (
               <WelcomeScreen key="welcome" onSuggestionClick={handleSendMessage} modelName={selectedModelMeta?.name || 'AI'} />
             ) : (
-              <motion.div key="messages" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-3 sm:space-y-4">
+              <motion.div key="messages" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${isArenaMode ? 'max-w-full px-2' : 'max-w-4xl px-3 sm:px-4 lg:px-6'} mx-auto py-4 sm:py-6 lg:py-8 space-y-3 sm:space-y-4 transition-all duration-300`}>
                 {messages.map((msg, index) => (
                   <ChatMessage
                     key={msg.id}
@@ -714,6 +834,8 @@ export default function Chat() {
                     modelName={msg.modelName || 'AI'}
                     onRegenerate={handleRegenerate}
                     canRegenerate={msg.role === 'assistant' && index === messages.length - 1 && !isLoading}
+                    isArenaMode={msg.isArenaMode}
+                    arenaResponses={msg.arenaResponses}
                   />
                 ))}
                 <div ref={messagesEndRef} className="h-4" />

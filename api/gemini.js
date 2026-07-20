@@ -1,13 +1,12 @@
 // Vercel serverless function: POST /api/gemini
 // Streams a Gemini chat completion (SSE) via the OpenAI-compatible endpoint.
 
+import { applyGuard } from "./_guard.js";
+
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
+  if (applyGuard(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

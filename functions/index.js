@@ -19,10 +19,50 @@ const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
 const SERPAPI_URL = "https://serpapi.com/search.json";
 
 
-// Same-origin in production (Hosting rewrite), so CORS is not needed. We still
-// send permissive headers so the emulator / direct calls work in development.
-function setCors(res) {
-  res.set("Access-Control-Allow-Origin", "*");
+// Comma-separated allowlist of origins permitted to use the proxy. When unset
+// (development), any origin is allowed. In production, set ALLOWED_ORIGINS to
+// your app's domain(s) so the app's server-side keys can't be driven from
+// other websites' browser code.
+function getAllowedOrigins() {
+  return (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
+// Returns the request's origin (falling back to the Referer's origin) or null.
+function requestOrigin(req) {
+  const origin = req.headers.origin;
+  if (origin) return origin;
+  const referer = req.headers.referer;
+  if (referer) {
+    try { return new URL(referer).origin; } catch { /* ignore */ }
+  }
+  return null;
+}
+
+// True when the request may use the proxy. If no allowlist is configured we
+// allow everything (dev). Otherwise a present Origin must be in the list; a
+// request with no Origin at all (same-origin server call, tooling) is allowed.
+function isOriginAllowed(req) {
+  const allowed = getAllowedOrigins();
+  if (allowed.length === 0) return true;
+  const origin = requestOrigin(req);
+  if (!origin) return true;
+  return allowed.includes(origin);
+}
+
+// Reflect the caller's origin when it is allowed, so CORS stays tight in
+// production while remaining permissive ("*") when no allowlist is set.
+function setCors(res, req) {
+  const allowed = getAllowedOrigins();
+  const origin = req ? requestOrigin(req) : null;
+  if (allowed.length === 0) {
+    res.set("Access-Control-Allow-Origin", "*");
+  } else if (origin && allowed.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+  }
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Api-Key, X-Nvidia-Api-Key, X-Mistral-Api-Key, X-OpenAI-Api-Key, X-Gemini-Api-Key, X-xAI-Api-Key");
   res.set("Access-Control-Max-Age", "3600");
@@ -42,9 +82,16 @@ export const api = onRequest(
     maxInstances: 10,
   },
   async (req, res) => {
-    setCors(res);
+    setCors(res, req);
     if (req.method === "OPTIONS") {
       res.status(204).send("");
+      return;
+    }
+
+    // Reject calls from origins outside the configured allowlist so the app's
+    // server-side keys can't be spent by other sites' browser code.
+    if (!isOriginAllowed(req)) {
+      res.status(403).json({ error: "Origin not allowed" });
       return;
     }
 

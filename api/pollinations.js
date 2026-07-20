@@ -1,13 +1,12 @@
 // Vercel serverless function: POST /api/pollinations
 // Streams a Pollinations AI chat completion (SSE). No API key needed!
 
+import { applyGuard } from "./_guard.js";
+
 const POLLINATIONS_URL = "https://text.pollinations.ai/v1/chat/completions";
 
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
+  if (applyGuard(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

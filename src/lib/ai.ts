@@ -1,50 +1,40 @@
 // All chat models are routed through NVIDIA NIM (requires API key)
 // The /api/nvidia proxy in vite.config.ts handles CORS and streaming.
 
-export const DEFAULT_CHAT_MODEL = "z-ai/glm-5.2";
+export const DEFAULT_CHAT_MODEL = "llama-8b";
 
 // ---------------------------------------------------------------------------
 // Model → NVIDIA NIM ID mapping
 // ---------------------------------------------------------------------------
 
-// Maps our internal model IDs to EXACT NVIDIA NIM model IDs
+// Maps our internal model IDs to EXACT NVIDIA NIM model IDs.
+// Every ID here was verified live against the account's NVIDIA NIM catalog —
+// only models that actually respond (HTTP 200 to a streaming completion) are
+// listed. IDs that 404, are DEGRADED, or hang were removed so the UI never
+// offers a model that produces "Failed to fetch".
 export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | 'Vision' | 'Image' }> = {
   // ── Featured Chat / Reasoning Models ──────────
-  "glm-5.2":           { nvidiaId: "z-ai/glm-5.2",                            kind: "Chat" },
   "deepseek-v4-pro":   { nvidiaId: "deepseek-ai/deepseek-v4-pro",             kind: "Chat" },
   "deepseek-v4-flash": { nvidiaId: "deepseek-ai/deepseek-v4-flash",           kind: "Chat" },
-  "kimi-k2.6":         { nvidiaId: "moonshotai/kimi-k2.6",                    kind: "Chat" },
   "minimax-m3":        { nvidiaId: "minimaxai/minimax-m3",                    kind: "Chat" },
-  "qwen-3.5-397b":     { nvidiaId: "qwen/qwen3.5-397b-a17b",                  kind: "Chat" },
+  "minimax-m2.7":      { nvidiaId: "minimaxai/minimax-m2.7",                  kind: "Chat" },
+  "qwen-3.5-122b":     { nvidiaId: "qwen/qwen3.5-122b-a10b",                  kind: "Chat" },
   "qwen-3-next-80b":   { nvidiaId: "qwen/qwen3-next-80b-a3b-instruct",        kind: "Chat" },
-  "cosmos-reason":     { nvidiaId: "nvidia/cosmos-reason2-8b",                kind: "Chat" },
-  "llama-70b":         { nvidiaId: "meta/llama-3.3-70b-instruct",             kind: "Chat" },
-  "llama-405b":        { nvidiaId: "meta/llama-3.1-405b-instruct",            kind: "Chat" },
-  "nemotron-70b":      { nvidiaId: "nvidia/llama-3.1-nemotron-70b-instruct",  kind: "Chat" },
   "gpt-oss-120b":      { nvidiaId: "openai/gpt-oss-120b",                     kind: "Chat" },
-  "mistral-large-3":   { nvidiaId: "mistralai/mistral-large-3-675b-instruct-2512", kind: "Chat" },
+  "gpt-oss-20b":       { nvidiaId: "openai/gpt-oss-20b",                      kind: "Chat" },
+  "llama-70b":         { nvidiaId: "meta/llama-3.1-70b-instruct",             kind: "Chat" },
+  "nemotron-super-49b":{ nvidiaId: "nvidia/llama-3.3-nemotron-super-49b-v1.5",kind: "Chat" },
+  "mistral-small-4":   { nvidiaId: "mistralai/mistral-small-4-119b-2603",     kind: "Chat" },
+  "step-3.7-flash":    { nvidiaId: "stepfun-ai/step-3.7-flash",              kind: "Chat" },
 
   // ── More Chat Models ──────────────────────────
-  "llama-maverick":    { nvidiaId: "meta/llama-4-maverick-17b-128e-instruct", kind: "Chat" },
   "llama-8b":          { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
-  "llama-3b":          { nvidiaId: "meta/llama-3.2-3b-instruct",              kind: "Chat" },
-  "mistral-large":     { nvidiaId: "mistralai/mistral-large-2-instruct",      kind: "Chat" },
-  "mixtral-8x22b":     { nvidiaId: "mistralai/mixtral-8x22b-v0.1",            kind: "Chat" },
-  "gemma-2-27b":       { nvidiaId: "google/gemma-2-27b-it",                   kind: "Chat" },
-  "gemma-3-31b":       { nvidiaId: "google/gemma-4-31b-it",                   kind: "Chat" },
-  "gemma-3-12b":       { nvidiaId: "google/gemma-3-12b-it",                   kind: "Chat" },
-  "phi-3.5-moe":       { nvidiaId: "microsoft/phi-3.5-moe-instruct",          kind: "Chat" },
-  "deepseek-coder":    { nvidiaId: "deepseek-ai/deepseek-coder-6.7b-instruct",kind: "Chat" },
-  "codestral":         { nvidiaId: "mistralai/codestral-22b-instruct-v0.1",   kind: "Chat" },
-  "mistral-nemo":      { nvidiaId: "nv-mistralai/mistral-nemo-12b-instruct",  kind: "Chat" },
-  "yi-large":          { nvidiaId: "01-ai/yi-large",                          kind: "Chat" },
-  "dbrx-instruct":     { nvidiaId: "databricks/dbrx-instruct",                kind: "Chat" },
+  "nemotron-nano-9b":  { nvidiaId: "nvidia/nvidia-nemotron-nano-9b-v2",       kind: "Chat" },
 
   // ── Vision Models ─────────────────────────────
   "llama-vision":      { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" },
   "nemotron-vl":       { nvidiaId: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1", kind: "Vision" },
-  "nemoretriever":     { nvidiaId: "nvidia/nemoretriever-parse",              kind: "Vision" },
-  "llama-90b-vision":  { nvidiaId: "meta/llama-3.2-90b-vision-instruct",      kind: "Vision" },
+  "nemotron-12b-vl":   { nvidiaId: "nvidia/nemotron-nano-12b-v2-vl",          kind: "Vision" },
 
   // ── Image Generation Models (via Pollinations) ──
   "qwen-image":        { nvidiaId: "pollinations", kind: "Image" },
@@ -54,7 +44,7 @@ export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | '
 };
 
 export function getNvidiaId(modelId: string): string {
-  return MODEL_REGISTRY[modelId]?.nvidiaId || "z-ai/glm-5.2";
+  return MODEL_REGISTRY[modelId]?.nvidiaId || "meta/llama-3.1-8b-instruct";
 }
 
 export function isVisionModel(modelId: string): boolean {
@@ -69,11 +59,13 @@ export function isImageModel(modelId: string): boolean {
 // API Key Retreivers
 // ---------------------------------------------------------------------------
 
-const getNvidiaApiKey = () => {
+// Only ever returns a user-supplied ("bring your own") key from Settings.
+// The app's own key is NEVER read here — it lives server-side on the /api
+// proxy so it can't be extracted from the browser bundle. When this returns
+// undefined the client calls the proxy keyless and the server injects its key.
+const getUserNvidiaApiKey = () => {
   const localKey = localStorage.getItem("VITE_NVIDIA_API_KEY") || localStorage.getItem("NVIDIA_API_KEY");
-  if (localKey) return localKey.trim();
-  const envKey = import.meta.env.VITE_NVIDIA_API_KEY as string | undefined;
-  return envKey ? envKey.trim() : undefined;
+  return localKey ? localKey.trim() : undefined;
 };
 
 // ---------------------------------------------------------------------------
@@ -99,19 +91,18 @@ export async function generateChatResponse(
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ) {
-  const key = getNvidiaApiKey();
-  if (!key) {
-    throw new Error("NVIDIA API key is missing. Please configure it in Settings (⚙️) or set VITE_NVIDIA_API_KEY in your .env file.");
-  }
   const nvidiaModel = getNvidiaId(modelId);
 
-  // Use the /api/nvidia proxy to avoid CORS issues in dev
+  // All requests go through the same-origin /api/nvidia proxy, which holds the
+  // app's server-side key. Only attach a key header if the user configured
+  // their OWN key in Settings — the app key never touches the browser.
+  const userKey = getUserNvidiaApiKey();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (userKey) headers["X-Nvidia-Api-Key"] = userKey;
+
   const response = await fetch("/api/nvidia", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Nvidia-Api-Key": key,
-    },
+    headers,
     body: JSON.stringify({
       model: nvidiaModel,
       messages,

@@ -5,9 +5,15 @@ import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState } from 'react';
-import { useElevenLabsTTS } from '@/hooks/useElevenLabsTTS';
+import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { extractFirstMarkdownImage, sanitizeAssistantText, stripMarkdownImages } from '@/lib/chat-format';
 import type { ChatAttachment } from './types';
+
+interface ArenaResponse {
+  modelId: string;
+  modelName: string;
+  content: string;
+}
 
 interface ChatMessageProps {
   role: 'user' | 'assistant';
@@ -18,6 +24,8 @@ interface ChatMessageProps {
   modelName?: string;
   onRegenerate?: () => void;
   canRegenerate?: boolean;
+  isArenaMode?: boolean;
+  arenaResponses?: ArenaResponse[];
 }
 
 function CodeBlock({ language, children }: { language: string; children: string }) {
@@ -58,134 +66,7 @@ function CodeBlock({ language, children }: { language: string; children: string 
   );
 }
 
-export default function ChatMessage({ role, content, isStreaming, attachments = [], imageUrl, modelName = "AI", onRegenerate, canRegenerate }: ChatMessageProps) {
-  const isUser = role === 'user';
-  const [copiedAll, setCopiedAll] = useState(false);
-  const [downloaded, setDownloaded] = useState(false);
-  const { speak, stop, isSpeaking, isLoading: isTTSLoading } = useElevenLabsTTS();
-
-  const displayContent = isUser ? content : sanitizeAssistantText(content);
-  const generatedImageUrl = !isUser ? imageUrl || extractFirstMarkdownImage(displayContent) : undefined;
-  const textOnlyContent = !isUser ? stripMarkdownImages(displayContent) : displayContent;
-
-  const handleCopyAll = async () => {
-    await navigator.clipboard.writeText(textOnlyContent || displayContent);
-    setCopiedAll(true);
-    setTimeout(() => setCopiedAll(false), 2000);
-  };
-
-  const handleDownloadImage = async () => {
-    if (!generatedImageUrl) return;
-    try {
-      let href = generatedImageUrl;
-      if (!href.startsWith('data:')) {
-        const res = await fetch(generatedImageUrl);
-        const blob = await res.blob();
-        href = URL.createObjectURL(blob);
-      }
-      const a = document.createElement('a');
-      a.href = href;
-      a.download = `aetheris-image-${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      if (!generatedImageUrl.startsWith('data:')) setTimeout(() => URL.revokeObjectURL(href), 4000);
-      setDownloaded(true);
-      setTimeout(() => setDownloaded(false), 2000);
-    } catch (e) {
-      console.error('Download failed', e);
-    }
-  };
-
-  const handleSpeak = () => {
-    if (isSpeaking) stop();
-    else speak(textOnlyContent || displayContent);
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ 
-        type: "spring", 
-        stiffness: 260, 
-        damping: 20, 
-        mass: 1 
-      }}
-      className={`w-full ${isUser ? 'flex justify-end' : ''}`}
-    >
-      {isUser ? (
-        <div className="max-w-[85%] sm:max-w-[75%]">
-          <div className="liquid-message-user rounded-2xl rounded-br-md px-5 py-3.5 backdrop-blur-xl">
-            {attachments.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {attachments.map((attachment) => (
-                  <div key={attachment.id} className="rounded-2xl overflow-hidden border border-primary/20 bg-background/50">
-                    {attachment.type === 'image' ? (
-                      <img src={attachment.url} alt={attachment.name} className="w-full h-32 object-cover block" loading="lazy" />
-                    ) : (
-                      <div className="h-32 flex flex-col items-center justify-center gap-2 px-3 text-center bg-background/60">
-                        <FileText className="w-6 h-6 text-primary" />
-                        <p className="text-xs text-foreground/80 line-clamp-2">{attachment.name}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {content && <p className="text-sm sm:text-[15px] leading-relaxed text-foreground font-medium">{content}</p>}
-          </div>
-        </div>
-      ) : (
-        <div className="w-full">
-          {/* AI indicator + actions */}
-          <div className="flex items-center gap-2 mb-3 justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg liquid-icon flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-sm font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{modelName}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {canRegenerate && onRegenerate && !isStreaming && (
-                <button type="button" onClick={onRegenerate}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary text-xs text-muted-foreground hover:text-foreground transition-all border border-border/30 hover:border-primary/30"
-                  title="Regenerate response">
-                  <RefreshCw className="w-3.5 h-3.5" /><span className="hidden sm:inline">Retry</span>
-                </button>
-              )}
-              <button type="button" onClick={handleSpeak} disabled={isTTSLoading}
-                className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all border ${isSpeaking ? 'bg-primary/20 text-primary border-primary/30' : isTTSLoading ? 'bg-primary/10 text-primary border-primary/20' : 'bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground border-border/30 hover:border-primary/30'}`}>
-                {isTTSLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </button>
-              <button type="button" onClick={handleCopyAll}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary text-xs text-muted-foreground hover:text-foreground transition-all border border-border/30 hover:border-primary/30">
-                {copiedAll ? <><Check className="w-3.5 h-3.5 text-primary" /><span className="text-primary font-medium">Copied</span></> : <><Copy className="w-3.5 h-3.5" /><span>Copy</span></>}
-              </button>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="w-full">
-            {generatedImageUrl && (
-              <div className="mb-5 relative group/image rounded-2xl overflow-hidden liquid-surface border border-border/30 shadow-2xl">
-                <img src={generatedImageUrl} alt="Generated image" className="w-full h-auto block" loading="lazy" />
-                <button
-                  type="button"
-                  onClick={handleDownloadImage}
-                  className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-background/70 backdrop-blur-md border border-border/40 text-xs font-medium text-foreground/90 hover:text-primary hover:border-primary/40 opacity-0 group-hover/image:opacity-100 transition-all duration-200"
-                  title="Download image"
-                >
-                  {downloaded ? <><Check className="w-4 h-4 text-primary" />Saved</> : <><Download className="w-4 h-4" />Download</>}
-                </button>
-              </div>
-            )}
-
-            {textOnlyContent ? (
-              <div className="prose prose-lg sm:prose-xl prose-invert max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
+const MARKDOWN_COMPONENTS: any = {
                     h1: ({ children }) => (
                       <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 mt-10 first:mt-0 text-foreground bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary drop-shadow-sm tracking-tight">
                         {children}
@@ -263,12 +144,142 @@ export default function ChatMessage({ role, content, isStreaming, attachments = 
                         </span>
                       );
                     },
-                  }}
+                  };
+
+export default function ChatMessage({ role, content, isStreaming, attachments = [], imageUrl, modelName = "AI", onRegenerate, canRegenerate, isArenaMode, arenaResponses }: ChatMessageProps) {
+  const isUser = role === 'user';
+  const [copiedAll, setCopiedAll] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const { speak, stop, isSpeaking, isLoading: isTTSLoading } = useTextToSpeech();
+
+  const displayContent = isUser ? content : sanitizeAssistantText(content);
+  const generatedImageUrl = !isUser ? imageUrl || extractFirstMarkdownImage(displayContent) : undefined;
+  const textOnlyContent = !isUser ? stripMarkdownImages(displayContent) : displayContent;
+
+  const handleCopyAll = async () => {
+    await navigator.clipboard.writeText(textOnlyContent || displayContent);
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  };
+
+  const handleDownloadImage = async () => {
+    if (!generatedImageUrl) return;
+    try {
+      let href = generatedImageUrl;
+      if (!href.startsWith('data:')) {
+        const res = await fetch(generatedImageUrl);
+        const blob = await res.blob();
+        href = URL.createObjectURL(blob);
+      }
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `aetheris-image-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      if (!generatedImageUrl.startsWith('data:')) setTimeout(() => URL.revokeObjectURL(href), 4000);
+      setDownloaded(true);
+      setTimeout(() => setDownloaded(false), 2000);
+    } catch (e) {
+      console.error('Download failed', e);
+    }
+  };
+
+  const handleSpeak = () => {
+    if (isSpeaking) stop();
+    else speak(textOnlyContent || displayContent);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ 
+        type: "spring", 
+        stiffness: 260, 
+        damping: 20, 
+        mass: 1 
+      }}
+      className={`w-full ${isUser ? 'flex justify-end' : ''}`}
+    >
+      {isUser ? (
+        <div className="max-w-[85%] sm:max-w-[75%]">
+          <div className="liquid-message-user rounded-2xl rounded-br-md px-5 py-3.5 backdrop-blur-xl">
+            {attachments.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {attachments.map((attachment) => (
+                  <div key={attachment.id} className="rounded-2xl overflow-hidden border border-primary/20 bg-background/50">
+                    {attachment.type === 'image' ? (
+                      <img src={attachment.url} alt={attachment.name} className="w-full h-32 object-cover block" loading="lazy" />
+                    ) : (
+                      <div className="h-32 flex flex-col items-center justify-center gap-2 px-3 text-center bg-background/60">
+                        <FileText className="w-6 h-6 text-primary" />
+                        <p className="text-xs text-foreground/80 line-clamp-2">{attachment.name}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {content && <p className="text-sm sm:text-[15px] leading-relaxed text-foreground font-medium">{content}</p>}
+          </div>
+        </div>
+      ) : (
+        <div className="w-full flex flex-col md:flex-row gap-6">
+          {/* Primary Model */}
+          <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-3 justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg liquid-icon flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-primary" />
+              </div>
+              <span className="text-sm font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{modelName}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {canRegenerate && onRegenerate && !isStreaming && (
+                <button type="button" onClick={onRegenerate}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary text-xs text-muted-foreground hover:text-foreground transition-all border border-border/30 hover:border-primary/30"
+                  title="Regenerate response">
+                  <RefreshCw className="w-3.5 h-3.5" /><span className="hidden sm:inline">Retry</span>
+                </button>
+              )}
+              <button type="button" onClick={handleSpeak} disabled={isTTSLoading}
+                className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all border ${isSpeaking ? 'bg-primary/20 text-primary border-primary/30' : isTTSLoading ? 'bg-primary/10 text-primary border-primary/20' : 'bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground border-border/30 hover:border-primary/30'}`}>
+                {isTTSLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </button>
+              <button type="button" onClick={handleCopyAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary text-xs text-muted-foreground hover:text-foreground transition-all border border-border/30 hover:border-primary/30">
+                {copiedAll ? <><Check className="w-3.5 h-3.5 text-primary" /><span className="text-primary font-medium">Copied</span></> : <><Copy className="w-3.5 h-3.5" /><span>Copy</span></>}
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="w-full">
+            {generatedImageUrl && (
+              <div className="mb-5 relative group/image rounded-2xl overflow-hidden liquid-surface border border-border/30 shadow-2xl">
+                <img src={generatedImageUrl} alt="Generated image" className="w-full h-auto block" loading="lazy" />
+                <button
+                  type="button"
+                  onClick={handleDownloadImage}
+                  className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-background/70 backdrop-blur-md border border-border/40 text-xs font-medium text-foreground/90 hover:text-primary hover:border-primary/40 opacity-0 group-hover/image:opacity-100 transition-all duration-200"
+                  title="Download image"
+                >
+                  {downloaded ? <><Check className="w-4 h-4 text-primary" />Saved</> : <><Download className="w-4 h-4" />Download</>}
+                </button>
+              </div>
+            )}
+
+            {textOnlyContent ? (
+              <div className="prose prose-lg sm:prose-xl prose-invert max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={MARKDOWN_COMPONENTS}
                 >
                   {textOnlyContent}
                 </ReactMarkdown>
               </div>
-            ) : isStreaming ? (
+            ) : (isStreaming && !isArenaMode) ? (
               <div className="flex items-center gap-3 py-2">
                 <div className="flex gap-1.5">
                   {[0, 1, 2].map((i) => (
@@ -289,6 +300,46 @@ export default function ChatMessage({ role, content, isStreaming, attachments = 
               />
             )}
           </div>
+        </div>
+
+        {/* Secondary Models (Arena Mode) — one column per compared model */}
+        {isArenaMode && arenaResponses?.map((arena) => {
+          const arenaText = sanitizeAssistantText(arena.content);
+          return (
+            <div key={arena.modelId} className="flex-1 min-w-0 border-t md:border-t-0 md:border-l border-border/30 pt-6 md:pt-0 md:pl-6">
+              <div className="flex items-center gap-2 mb-3 justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg liquid-icon flex items-center justify-center bg-accent/20">
+                    <Sparkles className="w-4 h-4 text-accent" />
+                  </div>
+                  <span className="text-sm font-semibold bg-gradient-to-r from-accent to-accent/70 bg-clip-text text-transparent">
+                    {arena.modelName || 'AI'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="prose prose-lg sm:prose-xl prose-invert max-w-none">
+                {arenaText ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                    {arenaText}
+                  </ReactMarkdown>
+                ) : isStreaming ? (
+                  <div className="flex items-center gap-3 py-2">
+                    <div className="flex gap-1.5">
+                      {[0, 1, 2].map((i) => (
+                        <motion.span key={i} className="w-2 h-2 rounded-full bg-accent"
+                          animate={{ scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }}
+                          transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.15 }}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-sm text-accent/80 font-medium">Thinking...</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
         </div>
       )}
     </motion.div>

@@ -1,6 +1,12 @@
-import { defineConfig, type ViteDevServer, type Plugin } from "vite";
+import { defineConfig, loadEnv, type ViteDevServer, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+
+// Env available to the /api proxy handlers. Vite does NOT load .env into
+// process.env, so we populate this from loadEnv() at config time. Falls back
+// to process.env for real deployment environments.
+let PROXY_ENV: Record<string, string | undefined> = process.env;
+const env = (key: string): string | undefined => PROXY_ENV[key] || process.env[key];
 
 // ---------------------------------------------------------------------------
 // Local API proxy plugin — streams NVIDIA / Mistral / Pollinations requests
@@ -16,8 +22,19 @@ function localApiProxy(): Plugin {
         const url = req.url || "";
         if (!url.startsWith("/api/")) return next();
 
-        // CORS for local dev
-        res.setHeader("Access-Control-Allow-Origin", "*");
+        // Origin allowlist (mirrors the production proxy). Unset in dev = allow all.
+        const allowedOrigins = (env("ALLOWED_ORIGINS") || "")
+          .split(",").map((o) => o.trim()).filter(Boolean);
+        const origin = h(req.headers as Record<string, string | string[] | undefined>, "origin")
+          || (() => { try { return new URL(h(req.headers as Record<string, string | string[] | undefined>, "referer") || "").origin; } catch { return undefined; } })();
+
+        // CORS
+        if (allowedOrigins.length === 0) {
+          res.setHeader("Access-Control-Allow-Origin", "*");
+        } else if (origin && allowedOrigins.includes(origin)) {
+          res.setHeader("Access-Control-Allow-Origin", origin);
+          res.setHeader("Vary", "Origin");
+        }
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Api-Key, X-Nvidia-Api-Key, X-Mistral-Api-Key");
         res.setHeader("Access-Control-Max-Age", "3600");
@@ -25,6 +42,12 @@ function localApiProxy(): Plugin {
         if (req.method === "OPTIONS") {
           res.writeHead(204);
           res.end();
+          return;
+        }
+
+        if (allowedOrigins.length > 0 && origin && !allowedOrigins.includes(origin)) {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Origin not allowed" }));
           return;
         }
 
@@ -74,8 +97,8 @@ async function proxyNvidia(
   const key =
     h(req.headers, "x-nvidia-api-key") ||
     h(req.headers, "authorization")?.split(" ")[1] ||
-    process.env.VITE_NVIDIA_API_KEY ||
-    process.env.NVIDIA_API_KEY;
+    env("VITE_NVIDIA_API_KEY") ||
+    env("NVIDIA_API_KEY");
 
   if (!key) {
     res.writeHead(400, { "Content-Type": "application/json" });
@@ -98,7 +121,7 @@ async function proxyNvidia(
       Accept: "text/event-stream",
     },
     body: JSON.stringify({
-      model: model || "z-ai/glm-5.2",
+      model: model || "meta/llama-3.1-8b-instruct",
       messages,
       stream: true,
       temperature: temperature ?? 0.7,
@@ -126,8 +149,8 @@ async function proxyMistral(
   const key =
     h(req.headers, "x-mistral-api-key") ||
     h(req.headers, "authorization")?.split(" ")[1] ||
-    process.env.VITE_MISTRAL_API_KEY ||
-    process.env.MISTRAL_API_KEY;
+    env("VITE_MISTRAL_API_KEY") ||
+    env("MISTRAL_API_KEY");
 
   if (!key) {
     res.writeHead(400, { "Content-Type": "application/json" });
@@ -197,27 +220,60 @@ async function proxySearch(
   res: { writeHead: Function; setHeader: Function; write: Function; end: Function; headersSent: boolean },
   body: Record<string, unknown>,
 ) {
-  const serpKey = process.env.VITE_SERP_API_KEY || process.env.VITE_SERPAPI_API_KEY || process.env.SERPAPI_API_KEY;
+  const serpKey =
+    env("VITE_SERP_API_KEY") || env("VITE_SERPAPI_API_KEY") || env("SERPAPI_API_KEY");
+  const query = (body.query as string) || "";
+
   if (!serpKey) {
     res.writeHead(400, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "SERPAPI_API_KEY is not configured" }));
     return;
   }
+  if (!query.trim()) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "`query` is required" }));
+    return;
+  }
 
-  const query = (body.query as string) || "";
-  const params = new URLSearchParams({ q: query, api_key: serpKey, engine: "google", num: "5" });
-  const upstream = await fetch(`https://serpapi.com/search.json?${params}`);
-  const data = await upstream.json();
-  const results = (data.organic_results || []).slice(0, 5).map((r: any) => ({
-    title: r.title,
-    link: r.link,
-    snippet: r.snippet,
+  const num = Math.min(Number(body.num) || 6, 10);
+  const params = new URLSearchParams({ q: query, api_key: serpKey, engine: "google", num: String(num) });
+
+  let data: any;
+  try {
+    const upstream = await fetch(`https://serpapi.com/search.json?${params}`);
+    data = await upstream.json();
+    if (!upstream.ok || data.error) {
+      console.error("[search] SerpApi error:", upstream.status, data.error);
+      res.writeHead(upstream.status || 502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "serpapi_error", detail: data.error || upstream.statusText }));
+      return;
+    }
+  } catch (err) {
+    console.error("[search] SerpApi fetch failed:", err);
+    res.writeHead(502, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "serpapi_unreachable" }));
+    return;
+  }
+
+  const results = (data.organic_results || []).slice(0, num).map((r: any) => ({
+    title: r.title || "",
+    link: r.link || "",
+    snippet: r.snippet || "",
+    source: r.source || null,
+    date: r.date || null,
   }));
 
-  const answerBox = data.answer_box ? { 
-    title: data.answer_box.title || null, 
-    answer: data.answer_box.answer || data.answer_box.snippet || null 
-  } : null;
+  // SerpApi returns either answer_box or an ai_overview depending on the query.
+  const ab = data.answer_box;
+  const overview = data.ai_overview?.text_blocks
+    ?.map((b: any) => b.snippet)
+    .filter(Boolean)
+    .join(" ");
+  const answerBox = ab
+    ? { title: ab.title || null, answer: ab.answer || ab.snippet || null }
+    : overview
+    ? { title: null, answer: overview }
+    : null;
 
   const related = data.related_searches ? data.related_searches.map((r: any) => r.query) : [];
 
@@ -259,7 +315,12 @@ async function streamResponse(
 // ---------------------------------------------------------------------------
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  // Load .env* files so the /api proxy handlers can read server-side keys
+  // (SerpApi, NVIDIA, Mistral). "" prefix loads ALL vars, not just VITE_*.
+  PROXY_ENV = loadEnv(mode, process.cwd(), "");
+
+  return {
   server: {
     host: "::",
     port: 8080,
@@ -275,4 +336,5 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-}));
+  };
+});

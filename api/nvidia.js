@@ -2,13 +2,12 @@
 // Streams a NVIDIA NIM chat completion (SSE) so the API key stays server-side.
 // Set VITE_NVIDIA_API_KEY or NVIDIA_API_KEY in the Vercel project env.
 
+import { applyGuard } from "./_guard.js";
+
 const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
+  if (applyGuard(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

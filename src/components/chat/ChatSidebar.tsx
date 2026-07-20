@@ -19,43 +19,32 @@ export interface AIModel {
   featured?: boolean;
 }
 
+// NOTE: Every id here maps 1:1 to a verified-working entry in MODEL_REGISTRY
+// (src/lib/ai.ts). Models that NVIDIA NIM returns 404/DEGRADED for — or that
+// hang — were removed so the picker never offers a model that fails to fetch.
 export const AI_MODELS: AIModel[] = [
   // ── Featured Chat / Reasoning Models ──────────
-  { id: 'glm-5.2', name: 'GLM 5.2', label: 'GLM 5.2', description: 'Fast flagship chat (Default)', emoji: '🧬', kind: 'Chat', featured: true },
-  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', label: 'DeepSeek V4', description: 'Latest DeepSeek flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },
+  { id: 'llama-8b', name: 'Llama 3.1 8B', label: 'Llama 8B', description: 'Fast, reliable default', emoji: '🦙', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', label: 'DeepSeek V4 Flash', description: 'Fast DeepSeek V4 reasoning', emoji: '⚡', kind: 'Chat', featured: true },
-  { id: 'kimi-k2.6', name: 'Kimi K2.6', label: 'Kimi K2.6', description: 'Moonshot AI advanced reasoning', emoji: '🌙', kind: 'Chat', featured: true },
-  { id: 'minimax-m3', name: 'MiniMax M3', label: 'MiniMax M3', description: 'MiniMax flagship chat model', emoji: '🚀', kind: 'Chat', featured: true },
-  { id: 'qwen-3.5-397b', name: 'Qwen 3.5 397B', label: 'Qwen 3.5 397B', description: 'Massive MoE reasoning giant', emoji: '🔮', kind: 'Chat', featured: true },
-  { id: 'qwen-3-next-80b', name: 'Qwen 3 Next 80B', label: 'Qwen 3 80B', description: 'Qwen 3 Next generation reasoning', emoji: '👑', kind: 'Chat', featured: true },
-  { id: 'mistral-large-3', name: 'Mistral Large 3', label: 'Mistral Large 3', description: 'Mistral AI latest flagship', emoji: '🇫🇷', kind: 'Chat', featured: true },
-  { id: 'cosmos-reason', name: 'Cosmos Reason', label: 'Cosmos Reason', description: 'Spatial & physics reasoning', emoji: '🌌', kind: 'Chat', featured: true },
-  { id: 'llama-70b', name: 'Llama 3.3 70B', label: 'Llama 3.3', description: 'Meta flagship instruct model', emoji: '🦙', kind: 'Chat', featured: true },
-  { id: 'llama-405b', name: 'Llama 405B', label: 'Llama 405B', description: 'Meta largest open model', emoji: '🐘', kind: 'Chat', featured: true },
-  { id: 'nemotron-70b', name: 'Nemotron 70B', label: 'Nemotron 70B', description: 'NVIDIA flagship reasoning', emoji: '🦁', kind: 'Chat', featured: true },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', label: 'DeepSeek V4', description: 'DeepSeek flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },
   { id: 'gpt-oss-120b', name: 'GPT-OSS 120B', label: 'GPT-OSS 120B', description: 'OpenAI GPT Open Source 120B', emoji: '🌐', kind: 'Chat', featured: true },
+  { id: 'qwen-3-next-80b', name: 'Qwen 3 Next 80B', label: 'Qwen 3 80B', description: 'Qwen 3 Next generation reasoning', emoji: '👑', kind: 'Chat', featured: true },
+  { id: 'qwen-3.5-122b', name: 'Qwen 3.5 122B', label: 'Qwen 3.5 122B', description: 'Large MoE reasoning model', emoji: '🔮', kind: 'Chat', featured: true },
+  { id: 'minimax-m3', name: 'MiniMax M3', label: 'MiniMax M3', description: 'MiniMax flagship chat model', emoji: '🚀', kind: 'Chat', featured: true },
+  { id: 'nemotron-super-49b', name: 'Nemotron Super 49B', label: 'Nemotron 49B', description: 'NVIDIA flagship reasoning', emoji: '🦁', kind: 'Chat', featured: true },
+  { id: 'llama-70b', name: 'Llama 3.1 70B', label: 'Llama 70B', description: 'Meta flagship instruct model', emoji: '🐘', kind: 'Chat', featured: true },
+  { id: 'mistral-small-4', name: 'Mistral Small 4', label: 'Mistral Small 4', description: 'Mistral AI efficient flagship', emoji: '🇫🇷', kind: 'Chat', featured: true },
 
   // ── More Chat Models ──────────────────────────
-  { id: 'llama-maverick', name: 'Llama Maverick 17B', label: 'Maverick', description: 'Llama 4 Maverick Instruct', emoji: '🔥', kind: 'Chat', featured: false },
-  { id: 'llama-8b', name: 'Llama 3.1 8B', label: 'Llama 8B', description: 'Fast Meta Instruct', emoji: '🦙', kind: 'Chat', featured: false },
-  { id: 'llama-3b', name: 'Llama 3.2 3B', label: 'Llama 3B', description: 'Lightweight Meta Instruct', emoji: '🦙', kind: 'Chat', featured: false },
-  { id: 'mistral-large', name: 'Mistral Large 2', label: 'Mistral Large 2', description: 'Mistral legacy flagship reasoning', emoji: '🇫🇷', kind: 'Chat', featured: false },
-  { id: 'mixtral-8x22b', name: 'Mixtral 8x22B', label: 'Mixtral 8x22B', description: 'Mistral Sparse MoE', emoji: '🌪️', kind: 'Chat', featured: false },
-  { id: 'gemma-2-27b', name: 'Gemma 2 27B', label: 'Gemma 2 27B', description: 'Efficient instruction model', emoji: '♊', kind: 'Chat', featured: false },
-  { id: 'gemma-3-31b', name: 'Gemma 3 31B', label: 'Gemma 3 31B', description: 'Google latest reasoning model', emoji: '💎', kind: 'Chat', featured: false },
-  { id: 'gemma-3-12b', name: 'Gemma 3 12B', label: 'Gemma 3 12B', description: 'Google mid-tier reasoning model', emoji: '✨', kind: 'Chat', featured: false },
-  { id: 'phi-3.5-moe', name: 'Phi-3.5 MoE', label: 'Phi-3.5 MoE', description: 'Microsoft advanced MoE', emoji: '🌀', kind: 'Chat', featured: false },
-  { id: 'deepseek-coder', name: 'DeepSeek Coder 6.7B', label: 'DS Coder', description: 'Advanced coding specialist', emoji: '💻', kind: 'Chat', featured: false },
-  { id: 'codestral', name: 'Codestral 22B', label: 'Codestral', description: 'Mistral coding specialist', emoji: '🥐', kind: 'Chat', featured: false },
-  { id: 'mistral-nemo', name: 'Mistral Nemo', label: 'Mistral Nemo', description: 'Compact multilingual model', emoji: '🔱', kind: 'Chat', featured: false },
-  { id: 'yi-large', name: 'Yi Large', label: 'Yi Large', description: '01.AI Large Language Model', emoji: '🐉', kind: 'Chat', featured: false },
-  { id: 'dbrx-instruct', name: 'DBRX Instruct', label: 'DBRX Instruct', description: 'Databricks MoE Instruct', emoji: '🧊', kind: 'Chat', featured: false },
+  { id: 'gpt-oss-20b', name: 'GPT-OSS 20B', label: 'GPT-OSS 20B', description: 'Lightweight OpenAI open source', emoji: '🌐', kind: 'Chat', featured: false },
+  { id: 'minimax-m2.7', name: 'MiniMax M2.7', label: 'MiniMax M2.7', description: 'MiniMax mid-tier chat model', emoji: '✨', kind: 'Chat', featured: false },
+  { id: 'nemotron-nano-9b', name: 'Nemotron Nano 9B', label: 'Nemotron Nano', description: 'Compact NVIDIA reasoning', emoji: '🔱', kind: 'Chat', featured: false },
+  { id: 'step-3.7-flash', name: 'Step 3.7 Flash', label: 'Step 3.7', description: 'StepFun fast reasoning', emoji: '🌀', kind: 'Chat', featured: false },
 
   // ── Vision Models ─────────────────────────────
   { id: 'llama-vision', name: 'Llama 3.2 11B Vision', label: 'Llama Vision', description: 'Analyze & describe images', emoji: '👁️', kind: 'Vision', featured: true },
   { id: 'nemotron-vl', name: 'Nemotron Nano VL 8B', label: 'Nemotron VL', description: 'Quick vision processing', emoji: '🦁', kind: 'Vision', featured: true },
-  { id: 'nemoretriever', name: 'NemoRetriever Parse', label: 'NemoRetriever', description: 'Document parsing & analysis', emoji: '📄', kind: 'Vision', featured: true },
-  { id: 'llama-90b-vision', name: 'Llama 3.2 90B Vision', label: 'Llama 90B Vision', description: 'High-detail image analysis', emoji: '🔬', kind: 'Vision', featured: false },
+  { id: 'nemotron-12b-vl', name: 'Nemotron Nano 12B VL', label: 'Nemotron 12B VL', description: 'High-detail image analysis', emoji: '🔬', kind: 'Vision', featured: false },
 
   // ── Image Generation Models ───────────────────
   { id: 'qwen-image', name: 'Qwen Image', label: 'Qwen Image', description: 'Generate images from text', emoji: '🎨', kind: 'Image', featured: true },
@@ -429,7 +418,7 @@ export default function ChatSidebar({
               <Button
                 type="button"
                 onClick={handleSaveKeys}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold h-9 rounded-xl transition-all duration-200"
+                className="  bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold h-9 rounded-xl transition-all duration-200"
               >
                 Save Keys
               </Button>
