@@ -86,7 +86,7 @@ export default function Auth() {
             >
               <Sparkles className="w-10 h-10 text-primary" />
             </motion.div>
-            <h1 className="text-3xl font-display font-bold gradient-text">Aetheris</h1>
+            <h1 className="text-3xl font-display font-bold gradient-text">Kairo</h1>
             <p className="text-muted-foreground mt-2 text-sm">
               {isLogin ? 'Welcome back! Sign in to continue' : 'Create an account to get started'}
             </p>

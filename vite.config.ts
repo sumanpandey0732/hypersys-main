@@ -121,7 +121,7 @@ async function proxyNvidia(
       Accept: "text/event-stream",
     },
     body: JSON.stringify({
-      model: model || "meta/llama-3.1-8b-instruct",
+      model: model || "z-ai/glm-5.2",
       messages,
       stream: true,
       temperature: temperature ?? 0.7,

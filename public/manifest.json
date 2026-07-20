@@ -1,6 +1,6 @@
 {
-  "name": "HyperSYS AI",
-  "short_name": "HyperSYS",
+  "name": "Kairo AI",
+  "short_name": "Kairo",
   "description": "Intelligent AI assistant for coding, learning, and real-time web search",
   "start_url": "/",
   "display": "standalone",

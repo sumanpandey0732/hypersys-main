@@ -173,7 +173,7 @@ export default function ChatMessage({ role, content, isStreaming, attachments = 
       }
       const a = document.createElement('a');
       a.href = href;
-      a.download = `aetheris-image-${Date.now()}.png`;
+      a.download = `novaris-image-${Date.now()}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -221,19 +221,20 @@ export default function ChatMessage({ role, content, isStreaming, attachments = 
                 ))}
               </div>
             )}
-            {content && <p className="text-sm sm:text-[15px] leading-relaxed text-foreground font-medium">{content}</p>}
+            {content && <p className="text-sm sm:text-[15px] leading-relaxed text-foreground font-medium whitespace-pre-wrap break-words">{content}</p>}
           </div>
         </div>
       ) : (
-        <div className="w-full flex flex-col md:flex-row gap-6">
+        <div className={isArenaMode ? 'w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4' : 'w-full flex flex-col md:flex-row gap-6'}>
           {/* Primary Model */}
-          <div className="flex-1 min-w-0">
+          <div className={isArenaMode ? 'flex-1 min-w-0 rounded-2xl border border-primary/25 bg-secondary/20 p-4 shadow-lg shadow-primary/5' : 'flex-1 min-w-0'}>
           <div className="flex items-center gap-2 mb-3 justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg liquid-icon flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-primary" />
               </div>
               <span className="text-sm font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{modelName}</span>
+              {isArenaMode && <span className="text-[10px] font-bold uppercase tracking-wider text-primary/70 bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5">Primary</span>}
             </div>
             <div className="flex items-center gap-2">
               {canRegenerate && onRegenerate && !isStreaming && (
@@ -306,7 +307,7 @@ export default function ChatMessage({ role, content, isStreaming, attachments = 
         {isArenaMode && arenaResponses?.map((arena) => {
           const arenaText = sanitizeAssistantText(arena.content);
           return (
-            <div key={arena.modelId} className="flex-1 min-w-0 border-t md:border-t-0 md:border-l border-border/30 pt-6 md:pt-0 md:pl-6">
+            <div key={arena.modelId} className="flex-1 min-w-0 rounded-2xl border border-accent/25 bg-secondary/20 p-4 shadow-lg shadow-accent/5">
               <div className="flex items-center gap-2 mb-3 justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-lg liquid-icon flex items-center justify-center bg-accent/20">

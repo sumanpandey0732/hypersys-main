@@ -1,7 +1,7 @@
 // All chat models are routed through NVIDIA NIM (requires API key)
 // The /api/nvidia proxy in vite.config.ts handles CORS and streaming.
 
-export const DEFAULT_CHAT_MODEL = "llama-8b";
+export const DEFAULT_CHAT_MODEL = "glm-5.2";
 
 // ---------------------------------------------------------------------------
 // Model → NVIDIA NIM ID mapping
@@ -14,21 +14,28 @@ export const DEFAULT_CHAT_MODEL = "llama-8b";
 // offers a model that produces "Failed to fetch".
 export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | 'Vision' | 'Image' }> = {
   // ── Featured Chat / Reasoning Models ──────────
+  "glm-5.2":           { nvidiaId: "z-ai/glm-5.2",                            kind: "Chat" },
   "deepseek-v4-pro":   { nvidiaId: "deepseek-ai/deepseek-v4-pro",             kind: "Chat" },
   "deepseek-v4-flash": { nvidiaId: "deepseek-ai/deepseek-v4-flash",           kind: "Chat" },
   "minimax-m3":        { nvidiaId: "minimaxai/minimax-m3",                    kind: "Chat" },
   "minimax-m2.7":      { nvidiaId: "minimaxai/minimax-m2.7",                  kind: "Chat" },
-  "qwen-3.5-122b":     { nvidiaId: "qwen/qwen3.5-122b-a10b",                  kind: "Chat" },
+  "qwen-3.5-397b":     { nvidiaId: "qwen/qwen3.5-397b-a17b",                  kind: "Chat" },
   "qwen-3-next-80b":   { nvidiaId: "qwen/qwen3-next-80b-a3b-instruct",        kind: "Chat" },
+  "kimi-k2.6":         { nvidiaId: "moonshotai/kimi-k2.6",                    kind: "Chat" },
+  "llama-4-maverick":  { nvidiaId: "meta/llama-4-maverick-17b-128e-instruct", kind: "Chat" },
   "gpt-oss-120b":      { nvidiaId: "openai/gpt-oss-120b",                     kind: "Chat" },
   "gpt-oss-20b":       { nvidiaId: "openai/gpt-oss-20b",                      kind: "Chat" },
+  "llama-3.3-70b":     { nvidiaId: "meta/llama-3.3-70b-instruct",             kind: "Chat" },
   "llama-70b":         { nvidiaId: "meta/llama-3.1-70b-instruct",             kind: "Chat" },
+  "nemotron-ultra-253b":{ nvidiaId: "nvidia/llama-3.1-nemotron-ultra-253b-v1",kind: "Chat" },
   "nemotron-super-49b":{ nvidiaId: "nvidia/llama-3.3-nemotron-super-49b-v1.5",kind: "Chat" },
-  "mistral-small-4":   { nvidiaId: "mistralai/mistral-small-4-119b-2603",     kind: "Chat" },
+  "mistral-large":     { nvidiaId: "mistralai/mistral-large-3-675b-instruct-2512", kind: "Chat" },
+  "mistral-medium":    { nvidiaId: "mistralai/mistral-medium-3.5-128b",       kind: "Chat" },
   "step-3.7-flash":    { nvidiaId: "stepfun-ai/step-3.7-flash",              kind: "Chat" },
 
   // ── More Chat Models ──────────────────────────
   "llama-8b":          { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
+  "gemma-3-12b":       { nvidiaId: "google/gemma-3-12b-it",                   kind: "Chat" },
   "nemotron-nano-9b":  { nvidiaId: "nvidia/nvidia-nemotron-nano-9b-v2",       kind: "Chat" },
 
   // ── Vision Models ─────────────────────────────
@@ -44,7 +51,7 @@ export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | '
 };
 
 export function getNvidiaId(modelId: string): string {
-  return MODEL_REGISTRY[modelId]?.nvidiaId || "meta/llama-3.1-8b-instruct";
+  return MODEL_REGISTRY[modelId]?.nvidiaId || "z-ai/glm-5.2";
 }
 
 export function isVisionModel(modelId: string): boolean {

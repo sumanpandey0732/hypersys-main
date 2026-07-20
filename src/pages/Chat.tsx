@@ -44,6 +44,31 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const SLOW_REQUEST_TIMEOUT_MS = 120_000;
 const DEFAULT_VISION_MODEL = 'llama-vision';
 
+// Brand persona — makes the assistant identify as Kairo (ChatGPT-style feel)
+// rather than leaking the underlying model provider. Injected as the first
+// system message on every chat turn.
+const KAIRO_SYSTEM_PROMPT = [
+  'You are Kairo, a helpful, friendly, and knowledgeable AI assistant.',
+  'Always refer to yourself as Kairo — never mention the underlying model, provider, or that you are built on any third-party technology.',
+  '',
+  'FORMATTING RULES (follow these on every reply):',
+  '- Open with a one or two sentence direct answer or summary, before any details.',
+  '- Use "## " headings to separate sections in longer answers; never start a reply with a heading.',
+  '- Use bullet points (- ) for lists of items and numbered lists (1. ) only for ordered steps or rankings.',
+  '- Bold the key terms with **term** so the reply is easy to skim.',
+  '- Put all code in fenced blocks with the correct language tag, e.g. ```python. Never put code in plain text.',
+  '- Use inline `code` for file names, commands, variables, and short identifiers.',
+  '- Use tables when comparing 2 or more things across attributes.',
+  '- Keep paragraphs short (1-3 sentences). Add a blank line between paragraphs, headings, and lists.',
+  '- End a longer or multi-step answer with a short "Next steps" or bottom-line line when it helps.',
+  '',
+  'STYLE:',
+  '- Be concise for simple questions and thorough for complex ones — match depth to the question.',
+  '- Prefer plain, clear language over jargon; define a term the first time you use it.',
+  '- When you are unsure, say so honestly rather than inventing facts.',
+  '- Do not wrap the whole response in a code block, and do not output raw JSON unless asked.',
+].join('\n');
+
 const compressImage = (file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -87,7 +112,19 @@ const compressImage = (file: File, maxWidth = 1024, maxHeight = 1024, quality = 
 
 const fileToDataUrl = (file: File): Promise<string> => {
   if (file.type.startsWith('image/')) {
-    return compressImage(file).catch(() => {
+    // Send the image at full quality (no downscaling / re-encoding). Only fall
+    // back to compression if the raw image is large enough to risk hitting the
+    // Firestore 1MB per-document limit or the model's payload cap.
+    const RAW_LIMIT_BYTES = 900_000; // ~0.9MB — safely under Firestore's 1MB doc limit
+    if (file.size <= RAW_LIMIT_BYTES) {
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+        reader.readAsDataURL(file);
+      });
+    }
+    return compressImage(file, 2048, 2048, 0.92).catch(() => {
       return new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
@@ -124,7 +161,7 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [selectedModel, setSelectedModel] = useState('llama-8b');
+  const [selectedModel, setSelectedModel] = useState('glm-5.2');
   
   // Arena Mode state
   const [isArenaMode, setIsArenaMode] = useState(false);
@@ -134,44 +171,6 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isNewConversationRef = useRef(false);
-
-  const [streak, setStreak] = useState<number>(() => {
-    return parseInt(localStorage.getItem('aetheris_chat_streak') || '0', 10);
-  });
-
-  const updateStreak = () => {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const lastDate = localStorage.getItem('aetheris_last_chat_date');
-    const currentStreak = parseInt(localStorage.getItem('aetheris_chat_streak') || '0', 10);
-
-    if (!lastDate) {
-      localStorage.setItem('aetheris_chat_streak', '1');
-      localStorage.setItem('aetheris_last_chat_date', today);
-      setStreak(1);
-    } else if (lastDate === today) {
-      if (currentStreak === 0) {
-        localStorage.setItem('aetheris_chat_streak', '1');
-        setStreak(1);
-      }
-    } else {
-      const lastChatDate = new Date(lastDate);
-      const todayDate = new Date(today);
-      const diffTime = Math.abs(todayDate.getTime() - lastChatDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays === 1) {
-        const newStreak = currentStreak + 1;
-        localStorage.setItem('aetheris_chat_streak', newStreak.toString());
-        localStorage.setItem('aetheris_last_chat_date', today);
-        setStreak(newStreak);
-        toast.success(`Streak extended! You're on a ${newStreak}-day streak 🔥`);
-      } else {
-        localStorage.setItem('aetheris_chat_streak', '1');
-        localStorage.setItem('aetheris_last_chat_date', today);
-        setStreak(1);
-      }
-    }
-  };
 
   const createSparkleBurst = () => {
     const sendBtn = document.querySelector('button[aria-label="Send message"]');
@@ -279,7 +278,7 @@ export default function Chat() {
       const activeConv = conversations.find(c => c.id === activeConversationId);
       if (activeConv?.modelId) {
         const isKnown = AI_MODELS.some(m => m.id === activeConv.modelId);
-        setSelectedModel(isKnown ? activeConv.modelId : 'llama-8b');
+        setSelectedModel(isKnown ? activeConv.modelId : 'glm-5.2');
       }
     }
   }, [activeConversationId, conversations]);
@@ -332,7 +331,6 @@ export default function Chat() {
     if ((!content.trim() && files.length === 0) || isLoading) return;
 
     createSparkleBurst();
-    updateStreak();
 
     const trimmedContent = content.trim();
     const pendingAttachments: ChatAttachment[] = await Promise.all(
@@ -382,7 +380,11 @@ export default function Chat() {
             ],
           }
         : { role: 'user', content: requestContent };
-    const allMessages: AiChatMessage[] = [...historyMessages, currentTurn];
+    const allMessages: AiChatMessage[] = [
+      { role: 'system', content: KAIRO_SYSTEM_PROMPT },
+      ...historyMessages,
+      currentTurn,
+    ];
 
     // Show user message and assistant response placeholder immediately!
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
@@ -610,8 +612,10 @@ export default function Chat() {
   useEffect(() => {
     if (regenText !== null && !isLoading) {
       const text = regenText;
-      setRegenText(null);
-      handleSendMessage(text);
+      // Keep regenText set (as an in-flight flag) until handleSendMessage has
+      // appended the new user + assistant placeholders, so the empty message
+      // list never falls through to the WelcomeScreen ("homepage") mid-retry.
+      handleSendMessage(text).finally(() => setRegenText(null));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regenText]);
@@ -655,7 +659,7 @@ export default function Chat() {
         {/* Header */}
         <header className="h-14 sm:h-16 liquid-header flex items-center px-3 sm:px-4 gap-3 sm:gap-4 relative z-20 flex-shrink-0">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/[0.02] to-transparent pointer-events-none" />
-          
+
           {isAuthenticated && (
             <motion.button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -673,7 +677,7 @@ export default function Chat() {
             </motion.div>
             <div className="min-w-0">
               <h1 className="font-display font-semibold text-base sm:text-lg truncate text-foreground/90">
-                {activeConversationId ? conversations.find((c) => c.id === activeConversationId)?.title || 'Chat' : (selectedModelMeta?.name || 'AI')}
+                {activeConversationId ? conversations.find((c) => c.id === activeConversationId)?.title || 'Chat' : 'Kairo'}
               </h1>
               {isLoading && (
                 <motion.div className="flex items-center gap-2" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}>
@@ -710,27 +714,6 @@ export default function Chat() {
           </div>
 
           <div className="relative flex items-center gap-3 flex-shrink-0">
-            {/* Daily Streak widget */}
-            {streak > 0 && (
-              <motion.div
-                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-rose-500/15 border border-orange-500/20 rounded-xl px-3 py-1.5 backdrop-blur-md select-none cursor-default group"
-                whileHover={{ scale: 1.05, boxShadow: '0 0 12px rgba(249, 115, 22, 0.25)', borderColor: 'rgba(249, 115, 22, 0.4)' }}
-                transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-                title="Your daily chat streak! Send a message every day to extend your streak."
-              >
-                <motion.span
-                  animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 1.5 }}
-                  className="text-sm select-none filter drop-shadow-[0_0_4px_rgba(249,115,22,0.4)]"
-                >
-                  🔥
-                </motion.span>
-                <span className="text-xs font-bold bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 bg-clip-text text-transparent group-hover:brightness-110 transition-all font-mono">
-                  {streak} DAY{streak > 1 ? 'S' : ''} STREAK
-                </span>
-              </motion.div>
-            )}
-
             {/* Arena Mode Toggle */}
             <div className="hidden md:flex items-center gap-1.5 bg-secondary/40 border border-border/30 rounded-xl p-1.5 backdrop-blur-md">
               <button
@@ -819,7 +802,7 @@ export default function Chat() {
                 </div>
                 <span className="text-xs text-primary/80 font-medium mt-3">Loading messages...</span>
               </div>
-            ) : messages.length === 0 ? (
+            ) : (messages.length === 0 && regenText === null) ? (
               <WelcomeScreen key="welcome" onSuggestionClick={handleSendMessage} modelName={selectedModelMeta?.name || 'AI'} />
             ) : (
               <motion.div key="messages" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${isArenaMode ? 'max-w-full px-2' : 'max-w-4xl px-3 sm:px-4 lg:px-6'} mx-auto py-4 sm:py-6 lg:py-8 space-y-3 sm:space-y-4 transition-all duration-300`}>

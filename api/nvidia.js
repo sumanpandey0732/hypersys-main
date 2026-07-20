@@ -34,7 +34,7 @@ export default async function handler(req, res) {
       Accept: "text/event-stream",
     },
     body: JSON.stringify({
-      model: model || "meta/llama-3.3-70b-instruct",
+      model: model || "z-ai/glm-5.2",
       messages,
       stream: true,
       temperature: temperature ?? 0.7,

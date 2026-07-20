@@ -1,6 +1,6 @@
 {
   "name": "functions",
-  "description": "Server-side API proxy for Aetheris (Mistral chat + SerpApi web search)",
+  "description": "Server-side API proxy for Kairo (Mistral chat + SerpApi web search)",
   "type": "module",
   "engines": {
     "node": "20"

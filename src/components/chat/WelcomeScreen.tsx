@@ -30,7 +30,7 @@ const itemVariants = {
 } as const;
 
 export default function WelcomeScreen({ onSuggestionClick ,
-  modelName = "AI"
+  modelName = "Kairo"
 }: WelcomeScreenProps) {
   return (
     <section 
@@ -99,18 +99,25 @@ export default function WelcomeScreen({ onSuggestionClick ,
             </motion.div>
           </motion.div>
           
-          <motion.h1 
-            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-display font-bold mb-4 sm:mb-6"
+          <motion.h1
+            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-display font-bold mb-3 sm:mb-4 tracking-tight"
             variants={itemVariants}
           >
-            <span className="gradient-text">{modelName}</span>
+            <span className="gradient-text">Kairo</span>
           </motion.h1>
-          
-          <motion.p 
-            className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-md mx-auto leading-relaxed px-2"
+
+          <motion.p
+            className="text-foreground/70 text-base sm:text-lg md:text-xl max-w-md mx-auto leading-relaxed px-2 font-medium"
             variants={itemVariants}
           >
-            Your intelligent companion — powered by multi-model AI
+            How can I help you today?
+          </motion.p>
+
+          <motion.p
+            className="text-muted-foreground/70 text-xs sm:text-sm max-w-md mx-auto mt-2 px-2"
+            variants={itemVariants}
+          >
+            Powered by <span className="text-primary/80 font-semibold">{modelName}</span>
           </motion.p>
         </motion.header>
 
