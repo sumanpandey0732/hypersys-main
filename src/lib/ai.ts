@@ -1,28 +1,31 @@
 // All chat models are routed through NVIDIA NIM (requires API key)
 // The /api/nvidia proxy in vite.config.ts handles CORS and streaming.
 
-export const DEFAULT_CHAT_MODEL = "glm-5.2";
+// Default flagship shown as "Kairo". Points at a verified-working model.
+// NOTE: z-ai/glm-5.2 is currently DOWN on NVIDIA NIM (returns 0 bytes / times
+// out even at the app's full 90s window, tested repeatedly on 2026-07-21). It is
+// kept in the registry so it works again automatically if NVIDIA restores it,
+// but it is NOT the default until then.
+export const DEFAULT_CHAT_MODEL = "gpt-oss-120b";
 
 // ---------------------------------------------------------------------------
 // Model → NVIDIA NIM ID mapping
 // ---------------------------------------------------------------------------
 
-// Maps our internal model IDs to EXACT NVIDIA NIM model IDs.
-// Every ID here was verified live against the account's NVIDIA NIM catalog —
-// only models that actually respond (HTTP 200 to a streaming completion) are
-// listed. IDs that 404, are DEGRADED, or hang were removed so the UI never
-// offers a model that produces "Failed to fetch".
+// Maps our internal model IDs to EXACT NVIDIA NIM model IDs from the account's
+// live NVIDIA NIM catalog. Some large models cold-start slowly (30-90s on first
+// hit) but do respond within the app's timeout window.
 export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | 'Vision' | 'Image' }> = {
   // ── Featured Chat / Reasoning Models ──────────
   "glm-5.2":           { nvidiaId: "z-ai/glm-5.2",                            kind: "Chat" },
   "deepseek-v4-pro":   { nvidiaId: "deepseek-ai/deepseek-v4-pro",             kind: "Chat" },
   "deepseek-v4-flash": { nvidiaId: "deepseek-ai/deepseek-v4-flash",           kind: "Chat" },
+  "kimi-k2.6":         { nvidiaId: "moonshotai/kimi-k2.6",                    kind: "Chat" },
+  "llama-4-maverick":  { nvidiaId: "meta/llama-4-maverick-17b-128e-instruct", kind: "Chat" },
   "minimax-m3":        { nvidiaId: "minimaxai/minimax-m3",                    kind: "Chat" },
   "minimax-m2.7":      { nvidiaId: "minimaxai/minimax-m2.7",                  kind: "Chat" },
   "qwen-3.5-397b":     { nvidiaId: "qwen/qwen3.5-397b-a17b",                  kind: "Chat" },
   "qwen-3-next-80b":   { nvidiaId: "qwen/qwen3-next-80b-a3b-instruct",        kind: "Chat" },
-  "kimi-k2.6":         { nvidiaId: "moonshotai/kimi-k2.6",                    kind: "Chat" },
-  "llama-4-maverick":  { nvidiaId: "meta/llama-4-maverick-17b-128e-instruct", kind: "Chat" },
   "gpt-oss-120b":      { nvidiaId: "openai/gpt-oss-120b",                     kind: "Chat" },
   "gpt-oss-20b":       { nvidiaId: "openai/gpt-oss-20b",                      kind: "Chat" },
   "llama-3.3-70b":     { nvidiaId: "meta/llama-3.3-70b-instruct",             kind: "Chat" },
@@ -51,7 +54,7 @@ export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | '
 };
 
 export function getNvidiaId(modelId: string): string {
-  return MODEL_REGISTRY[modelId]?.nvidiaId || "z-ai/glm-5.2";
+  return MODEL_REGISTRY[modelId]?.nvidiaId || "openai/gpt-oss-120b";
 }
 
 export function isVisionModel(modelId: string): boolean {

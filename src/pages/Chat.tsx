@@ -161,7 +161,7 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [selectedModel, setSelectedModel] = useState('glm-5.2');
+  const [selectedModel, setSelectedModel] = useState('gpt-oss-120b');
   
   // Arena Mode state
   const [isArenaMode, setIsArenaMode] = useState(false);
@@ -278,7 +278,7 @@ export default function Chat() {
       const activeConv = conversations.find(c => c.id === activeConversationId);
       if (activeConv?.modelId) {
         const isKnown = AI_MODELS.some(m => m.id === activeConv.modelId);
-        setSelectedModel(isKnown ? activeConv.modelId : 'glm-5.2');
+        setSelectedModel(isKnown ? activeConv.modelId : 'gpt-oss-120b');
       }
     }
   }, [activeConversationId, conversations]);

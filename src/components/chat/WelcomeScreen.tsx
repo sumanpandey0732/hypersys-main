@@ -104,6 +104,7 @@ export default function WelcomeScreen({ onSuggestionClick ,
             variants={itemVariants}
           >
             <span className="gradient-text">Kairo</span>
+            <span className="text-foreground/40 font-light"> AI</span>
           </motion.h1>
 
           <motion.p
@@ -113,12 +114,15 @@ export default function WelcomeScreen({ onSuggestionClick ,
             How can I help you today?
           </motion.p>
 
-          <motion.p
-            className="text-muted-foreground/70 text-xs sm:text-sm max-w-md mx-auto mt-2 px-2"
+          <motion.div
+            className="flex items-center justify-center gap-2 mt-3 px-2"
             variants={itemVariants}
           >
-            Powered by <span className="text-primary/80 font-semibold">{modelName}</span>
-          </motion.p>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs sm:text-sm text-muted-foreground/80">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Powered by <span className="text-primary/90 font-semibold">{modelName}</span>
+            </span>
+          </motion.div>
         </motion.header>
 
         {/* Feature badges - Compact and elegant */}

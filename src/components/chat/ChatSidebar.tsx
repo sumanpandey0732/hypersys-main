@@ -24,8 +24,9 @@ export interface AIModel {
 // hang — were removed so the picker never offers a model that fails to fetch.
 export const AI_MODELS: AIModel[] = [
   // ── Featured Chat / Reasoning Models ──────────
-  { id: 'glm-5.2', name: 'Kairo', label: 'Kairo', description: 'Fast flagship chat (Default)', emoji: '🧬', kind: 'Chat', featured: true },
+  { id: 'gpt-oss-120b', name: 'Kairo', label: 'Kairo', description: 'Fast flagship chat (Default)', emoji: '🧬', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', label: 'DeepSeek V4', description: 'DeepSeek flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },
+  { id: 'glm-5.2', name: 'GLM 5.2', label: 'GLM 5.2', description: 'Zhipu GLM flagship', emoji: '🧬', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', label: 'DeepSeek V4 Flash', description: 'Fast DeepSeek V4 reasoning', emoji: '⚡', kind: 'Chat', featured: true },
   { id: 'kimi-k2.6', name: 'Kimi K2.6', label: 'Kimi K2.6', description: 'Moonshot flagship reasoning', emoji: '🌙', kind: 'Chat', featured: true },
   { id: 'llama-4-maverick', name: 'Llama 4 Maverick', label: 'Llama 4', description: 'Meta Llama 4 128-expert MoE', emoji: '🦅', kind: 'Chat', featured: true },
