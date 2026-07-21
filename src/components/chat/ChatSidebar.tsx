@@ -49,11 +49,12 @@ export const AI_MODELS: AIModel[] = [
   { id: 'nemotron-vl', name: 'Nemotron Nano VL 8B', label: 'Nemotron VL', description: 'Quick vision processing', emoji: '🦁', kind: 'Vision', featured: true },
   { id: 'nemotron-12b-vl', name: 'Nemotron Nano 12B VL', label: 'Nemotron 12B VL', description: 'High-detail image analysis', emoji: '🔬', kind: 'Vision', featured: false },
 
-  // ── Image Generation Models ───────────────────
-  { id: 'qwen-image', name: 'Qwen Image', label: 'Qwen Image', description: 'Generate images from text', emoji: '🎨', kind: 'Image', featured: true },
-  { id: 'sd-3.5-large', name: 'FLUX', label: 'FLUX', description: 'Photorealistic image generation', emoji: '🖼️', kind: 'Image', featured: true },
-  { id: 'flux2-klein', name: 'FLUX Klein', label: 'FLUX Klein', description: 'Fast stylized images', emoji: '⚡', kind: 'Image', featured: true },
-  { id: 'qwen-image-edit', name: 'Image Edit', label: 'Image Edit', description: 'AI-powered image editing', emoji: '✏️', kind: 'Image', featured: false },
+  // ── Image Generation Models (Pollinations, verified live 2026-07-21) ──
+  { id: 'flux', name: 'FLUX', label: 'FLUX', description: 'Highest-quality photorealistic images', emoji: '🖼️', kind: 'Image', featured: true },
+  { id: 'gptimage', name: 'GPT Image', label: 'GPT Image', description: 'Newest ChatGPT-style generation', emoji: '🎨', kind: 'Image', featured: true },
+  { id: 'turbo', name: 'FLUX Turbo', label: 'Turbo', description: 'Fastest image generation', emoji: '⚡', kind: 'Image', featured: true },
+  { id: 'sana', name: 'NVIDIA Sana', label: 'Sana', description: 'Fast, crisp NVIDIA diffusion', emoji: '✨', kind: 'Image', featured: false },
+  { id: 'stable-diffusion', name: 'Stable Diffusion', label: 'Stable Diffusion', description: 'Classic versatile image model', emoji: '🌈', kind: 'Image', featured: false },
 ];
 
 

@@ -50,10 +50,16 @@ export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | '
   "nemotron-12b-vl":   { nvidiaId: "nvidia/nemotron-nano-12b-v2-vl",          kind: "Vision" },
 
   // ── Image Generation Models (via Pollinations) ──
-  "qwen-image":        { nvidiaId: "pollinations", kind: "Image" },
-  "sd-3.5-large":      { nvidiaId: "pollinations", kind: "Image" },
-  "flux2-klein":       { nvidiaId: "pollinations", kind: "Image" },
-  "qwen-image-edit":   { nvidiaId: "pollinations", kind: "Image" },
+  // The 5 most popular/latest models VERIFIED LIVE on the keyless anonymous
+  // Pollinations tier on 2026-07-21. Each was confirmed twice by issuing real
+  // generations (200 image/jpeg, distinct outputs with unique prompts). Excluded
+  // after testing: "kontext" and "nanobanana" — both 500 "only available on
+  // enter.pollinations.ai" (paid tier), so they'd break for our keyless users.
+  "flux":              { nvidiaId: "pollinations", kind: "Image" }, // default, highest quality
+  "gptimage":          { nvidiaId: "pollinations", kind: "Image" }, // newest, ChatGPT-style
+  "turbo":             { nvidiaId: "pollinations", kind: "Image" }, // fastest
+  "sana":              { nvidiaId: "pollinations", kind: "Image" }, // NVIDIA Sana, fast + crisp
+  "stable-diffusion":  { nvidiaId: "pollinations", kind: "Image" }, // classic SD baseline
 };
 
 export function getNvidiaId(modelId: string): string {
@@ -230,16 +236,11 @@ export function buildImagePrompt(userPrompt: string): string {
 }
 
 // Map our internal image model IDs to a valid Pollinations model name.
+// Our IDs are already the exact Pollinations model names (verified live), so
+// this is a passthrough with a safe "flux" fallback for anything unknown.
+const POLLINATIONS_MODELS = new Set(["flux", "gptimage", "turbo", "sana", "stable-diffusion"]);
 function pollinationsModelFor(modelId: string): string {
-  switch (modelId) {
-    case "flux2-klein":
-      return "turbo"; // fast, stylized
-    case "sd-3.5-large":
-    case "qwen-image":
-    case "qwen-image-edit":
-    default:
-      return "flux"; // high quality default
-  }
+  return POLLINATIONS_MODELS.has(modelId) ? modelId : "flux";
 }
 
 export async function generateImageResponse(
