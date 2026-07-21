@@ -40,16 +40,20 @@ interface Conversation {
   modelId?: string;
 }
 
-const REQUEST_TIMEOUT_MS = 60_000;
-const SLOW_REQUEST_TIMEOUT_MS = 120_000;
+// Some flagship NIM models (qwen-3.5-397b, minimax-m3, llama-4-maverick,
+// mistral-large/medium) cold-start 60-100s before the first token, then stream
+// fine. The base timeout must clear that window or those models always error.
+// Verified worst-case first-token was ~100s on 2026-07-21.
+const REQUEST_TIMEOUT_MS = 130_000;
+const SLOW_REQUEST_TIMEOUT_MS = 130_000;
 const DEFAULT_VISION_MODEL = 'llama-vision';
 
-// Brand persona — makes the assistant identify as Kairo (ChatGPT-style feel)
+// Brand persona — makes the assistant identify as Flyer (ChatGPT-style feel)
 // rather than leaking the underlying model provider. Injected as the first
 // system message on every chat turn.
-const KAIRO_SYSTEM_PROMPT = [
-  'You are Kairo, a helpful, friendly, and knowledgeable AI assistant.',
-  'Always refer to yourself as Kairo — never mention the underlying model, provider, or that you are built on any third-party technology.',
+const Flyer_SYSTEM_PROMPT = [
+  'You are Flyer, a helpful, friendly, and knowledgeable AI assistant.',
+  'Always refer to yourself as Flyer — never mention the underlying model, provider, or that you are built on any third-party technology.',
   '',
   'FORMATTING RULES (follow these on every reply):',
   '- Open with a one or two sentence direct answer or summary, before any details.',
@@ -67,6 +71,28 @@ const KAIRO_SYSTEM_PROMPT = [
   '- Prefer plain, clear language over jargon; define a term the first time you use it.',
   '- When you are unsure, say so honestly rather than inventing facts.',
   '- Do not wrap the whole response in a code block, and do not output raw JSON unless asked.',
+  '- Never show your private reasoning, scratch work, or <think> blocks — reply only with the final, polished answer.',
+].join('\n');
+
+// Vision turns use a purpose-built prompt: it forces a clean, skimmable,
+// ChatGPT-style breakdown of what is actually in the image instead of a single
+// unstructured paragraph, and guards against the model inventing details.
+const VISION_SYSTEM_PROMPT = [
+  'You are Flyer, a sharp-eyed visual analysis assistant. You are shown one or more images and must describe and reason about what you actually see.',
+  'Always refer to yourself as Flyer — never mention the underlying model or provider.',
+  '',
+  'HOW TO ANSWER:',
+  "- If the user asked a specific question about the image, answer THAT first in one or two direct sentences, then add supporting detail.",
+  '- Otherwise, lead with a one-line summary of what the image is, then break it down under "## " headings such as **Overview**, **Key details**, **Text in image** (transcribe any visible text verbatim), and **Notable observations**.',
+  '- Use bullet points for lists of objects, people, colors, or details so the answer is easy to skim.',
+  '- Bold the important elements with **term**.',
+  '',
+  'ACCURACY RULES:',
+  '- Describe only what is genuinely visible. Never invent objects, text, brands, or people that are not clearly there.',
+  '- If something is blurry, cropped, or ambiguous, say so plainly instead of guessing.',
+  '- Do not claim to identify a specific real, named private individual from their face.',
+  '- If asked to read text or code in the image, transcribe it exactly inside the appropriate fenced block or inline `code`.',
+  '- Never show private reasoning or <think> blocks — reply only with the final answer.',
 ].join('\n');
 
 const compressImage = (file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8): Promise<string> => {
@@ -380,8 +406,9 @@ export default function Chat() {
             ],
           }
         : { role: 'user', content: requestContent };
+    const usesVision = hasImages && isVisionModel(effectiveModelId);
     const allMessages: AiChatMessage[] = [
-      { role: 'system', content: KAIRO_SYSTEM_PROMPT },
+      { role: 'system', content: usesVision ? VISION_SYSTEM_PROMPT : Flyer_SYSTEM_PROMPT },
       ...historyMessages,
       currentTurn,
     ];
@@ -428,6 +455,9 @@ export default function Chat() {
       timeoutReached = true;
       abortControllerRef.current?.abort();
     }, timeoutMs);
+    // Once the first token arrives the model is alive and streaming — cancel the
+    // cold-start guard so a long-but-healthy answer is never cut off mid-stream.
+    const clearColdStartGuard = () => clearTimeout(timeoutId);
 
     try {
       if (isImageGen) {
@@ -500,6 +530,7 @@ export default function Chat() {
             effectiveModelId,
             (delta) => {
               fullContent += delta;
+              if (!receivedAssistantContent) clearColdStartGuard();
               receivedAssistantContent = true;
               const liveContent = sanitizeAssistantText(fullContent) || fullContent;
               setMessages((prev) =>
@@ -677,7 +708,7 @@ export default function Chat() {
             </motion.div>
             <div className="min-w-0">
               <h1 className="font-display font-semibold text-base sm:text-lg truncate text-foreground/90">
-                {activeConversationId ? conversations.find((c) => c.id === activeConversationId)?.title || 'Chat' : 'Kairo'}
+                {activeConversationId ? conversations.find((c) => c.id === activeConversationId)?.title || 'Chat' : 'Flyer'}
               </h1>
               {isLoading && (
                 <motion.div className="flex items-center gap-2" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}>

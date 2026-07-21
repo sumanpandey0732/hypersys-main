@@ -24,17 +24,13 @@ export interface AIModel {
 // hang — were removed so the picker never offers a model that fails to fetch.
 export const AI_MODELS: AIModel[] = [
   // ── Featured Chat / Reasoning Models ──────────
-  { id: 'gpt-oss-120b', name: 'Kairo', label: 'Kairo', description: 'Fast flagship chat (Default)', emoji: '🧬', kind: 'Chat', featured: true },
+  { id: 'gpt-oss-120b', name: 'Flyer', label: 'Flyer', description: 'Fast flagship chat (Default)', emoji: '🧬', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', label: 'DeepSeek V4', description: 'DeepSeek flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },
-  { id: 'glm-5.2', name: 'GLM 5.2', label: 'GLM 5.2', description: 'Zhipu GLM flagship', emoji: '🧬', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', label: 'DeepSeek V4 Flash', description: 'Fast DeepSeek V4 reasoning', emoji: '⚡', kind: 'Chat', featured: true },
-  { id: 'kimi-k2.6', name: 'Kimi K2.6', label: 'Kimi K2.6', description: 'Moonshot flagship reasoning', emoji: '🌙', kind: 'Chat', featured: true },
   { id: 'llama-4-maverick', name: 'Llama 4 Maverick', label: 'Llama 4', description: 'Meta Llama 4 128-expert MoE', emoji: '🦅', kind: 'Chat', featured: true },
-  { id: 'gpt-oss-120b', name: 'GPT-OSS 120B', label: 'GPT-OSS 120B', description: 'OpenAI GPT Open Source 120B', emoji: '🌐', kind: 'Chat', featured: true },
   { id: 'qwen-3.5-397b', name: 'Qwen 3.5 397B', label: 'Qwen 3.5', description: 'Large MoE reasoning model', emoji: '🔮', kind: 'Chat', featured: true },
   { id: 'minimax-m3', name: 'MiniMax M3', label: 'MiniMax M3', description: 'MiniMax flagship chat model', emoji: '🚀', kind: 'Chat', featured: true },
   { id: 'mistral-large', name: 'Mistral Large 3', label: 'Mistral Large', description: 'Mistral AI 675B flagship', emoji: '🇫🇷', kind: 'Chat', featured: true },
-  { id: 'nemotron-ultra-253b', name: 'Nemotron Ultra 253B', label: 'Nemotron Ultra', description: 'NVIDIA flagship reasoning', emoji: '🦁', kind: 'Chat', featured: true },
   { id: 'llama-3.3-70b', name: 'Llama 3.3 70B', label: 'Llama 3.3 70B', description: 'Meta flagship instruct model', emoji: '🐘', kind: 'Chat', featured: true },
 
   // ── More Chat Models ──────────────────────────
@@ -44,7 +40,6 @@ export const AI_MODELS: AIModel[] = [
   { id: 'llama-70b', name: 'Llama 3.1 70B', label: 'Llama 70B', description: 'Meta 3.1 instruct model', emoji: '🐘', kind: 'Chat', featured: false },
   { id: 'gpt-oss-20b', name: 'GPT-OSS 20B', label: 'GPT-OSS 20B', description: 'Lightweight OpenAI open source', emoji: '🌐', kind: 'Chat', featured: false },
   { id: 'minimax-m2.7', name: 'MiniMax M2.7', label: 'MiniMax M2.7', description: 'MiniMax mid-tier chat model', emoji: '✨', kind: 'Chat', featured: false },
-  { id: 'gemma-3-12b', name: 'Gemma 3 12B', label: 'Gemma 3', description: 'Google Gemma 3 instruct', emoji: '💎', kind: 'Chat', featured: false },
   { id: 'llama-8b', name: 'Llama 3.1 8B', label: 'Llama 8B', description: 'Fast, lightweight model', emoji: '🦙', kind: 'Chat', featured: false },
   { id: 'nemotron-nano-9b', name: 'Nemotron Nano 9B', label: 'Nemotron Nano', description: 'Compact NVIDIA reasoning', emoji: '🔱', kind: 'Chat', featured: false },
   { id: 'step-3.7-flash', name: 'Step 3.7 Flash', label: 'Step 3.7', description: 'StepFun fast reasoning', emoji: '🌀', kind: 'Chat', featured: false },
@@ -167,7 +162,7 @@ export default function ChatSidebar({
                   <Sparkles className="w-5 h-5 text-primary" />
                 </div>
                 <span className="font-display font-bold text-lg gradient-text">
-                  Kairo
+                  Flyer
                 </span>
               </div>
               <button onClick={onToggleCollapse} className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors lg:block hidden" aria-label="Collapse sidebar">

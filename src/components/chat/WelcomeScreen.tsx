@@ -30,7 +30,7 @@ const itemVariants = {
 } as const;
 
 export default function WelcomeScreen({ onSuggestionClick ,
-  modelName = "Kairo"
+  modelName = "Flyer"
 }: WelcomeScreenProps) {
   return (
     <section 
@@ -103,7 +103,7 @@ export default function WelcomeScreen({ onSuggestionClick ,
             className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-display font-bold mb-3 sm:mb-4 tracking-tight"
             variants={itemVariants}
           >
-            <span className="gradient-text">Kairo</span>
+            <span className="gradient-text">Flyer</span>
             <span className="text-foreground/40 font-light"> AI</span>
           </motion.h1>
 

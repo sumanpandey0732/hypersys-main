@@ -1,6 +1,6 @@
 {
-  "name": "Kairo AI",
-  "short_name": "Kairo",
+  "name": "Flyer AI",
+  "short_name": "Flyer",
   "description": "Intelligent AI assistant for coding, learning, and real-time web search",
   "start_url": "/",
   "display": "standalone",

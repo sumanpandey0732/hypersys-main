@@ -1,11 +1,8 @@
 // All chat models are routed through NVIDIA NIM (requires API key)
 // The /api/nvidia proxy in vite.config.ts handles CORS and streaming.
 
-// Default flagship shown as "Kairo". Points at a verified-working model.
-// NOTE: z-ai/glm-5.2 is currently DOWN on NVIDIA NIM (returns 0 bytes / times
-// out even at the app's full 90s window, tested repeatedly on 2026-07-21). It is
-// kept in the registry so it works again automatically if NVIDIA restores it,
-// but it is NOT the default until then.
+// Default flagship shown as "Flyer". Points at a verified-working model
+// (openai/gpt-oss-120b — confirmed live, ~30s first token on 2026-07-21).
 export const DEFAULT_CHAT_MODEL = "gpt-oss-120b";
 
 // ---------------------------------------------------------------------------
@@ -15,12 +12,20 @@ export const DEFAULT_CHAT_MODEL = "gpt-oss-120b";
 // Maps our internal model IDs to EXACT NVIDIA NIM model IDs from the account's
 // live NVIDIA NIM catalog. Some large models cold-start slowly (30-90s on first
 // hit) but do respond within the app's timeout window.
+//
+// Verified live against the account's NVIDIA NIM catalog on 2026-07-21 by
+// issuing a real chat completion to each. Only models that returned a 200 (or
+// a valid slow cold-start stream) are kept. Removed as 404 "Function not found
+// for account": moonshotai/kimi-k2.6, nvidia/llama-3.1-nemotron-ultra-253b-v1,
+// google/gemma-3-12b-it. z-ai/glm-5.2 remains DOWN (0 bytes / timeout).
+//
+// SLOW models (60-100s first-token cold start, then fine): qwen-3.5-397b,
+// minimax-m3, llama-4-maverick, mistral-large, mistral-medium. The chat
+// timeout is sized to let these complete — see REQUEST_TIMEOUT_MS in Chat.tsx.
 export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | 'Vision' | 'Image' }> = {
   // ── Featured Chat / Reasoning Models ──────────
-  "glm-5.2":           { nvidiaId: "z-ai/glm-5.2",                            kind: "Chat" },
   "deepseek-v4-pro":   { nvidiaId: "deepseek-ai/deepseek-v4-pro",             kind: "Chat" },
   "deepseek-v4-flash": { nvidiaId: "deepseek-ai/deepseek-v4-flash",           kind: "Chat" },
-  "kimi-k2.6":         { nvidiaId: "moonshotai/kimi-k2.6",                    kind: "Chat" },
   "llama-4-maverick":  { nvidiaId: "meta/llama-4-maverick-17b-128e-instruct", kind: "Chat" },
   "minimax-m3":        { nvidiaId: "minimaxai/minimax-m3",                    kind: "Chat" },
   "minimax-m2.7":      { nvidiaId: "minimaxai/minimax-m2.7",                  kind: "Chat" },
@@ -30,7 +35,6 @@ export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | '
   "gpt-oss-20b":       { nvidiaId: "openai/gpt-oss-20b",                      kind: "Chat" },
   "llama-3.3-70b":     { nvidiaId: "meta/llama-3.3-70b-instruct",             kind: "Chat" },
   "llama-70b":         { nvidiaId: "meta/llama-3.1-70b-instruct",             kind: "Chat" },
-  "nemotron-ultra-253b":{ nvidiaId: "nvidia/llama-3.1-nemotron-ultra-253b-v1",kind: "Chat" },
   "nemotron-super-49b":{ nvidiaId: "nvidia/llama-3.3-nemotron-super-49b-v1.5",kind: "Chat" },
   "mistral-large":     { nvidiaId: "mistralai/mistral-large-3-675b-instruct-2512", kind: "Chat" },
   "mistral-medium":    { nvidiaId: "mistralai/mistral-medium-3.5-128b",       kind: "Chat" },
@@ -38,7 +42,6 @@ export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | '
 
   // ── More Chat Models ──────────────────────────
   "llama-8b":          { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
-  "gemma-3-12b":       { nvidiaId: "google/gemma-3-12b-it",                   kind: "Chat" },
   "nemotron-nano-9b":  { nvidiaId: "nvidia/nvidia-nemotron-nano-9b-v2",       kind: "Chat" },
 
   // ── Vision Models ─────────────────────────────
@@ -193,26 +196,73 @@ function friendlyHttpError(status: number, providerLabel: string): string {
 // Image generation
 // ---------------------------------------------------------------------------
 
+// Turn a plain user request into a rich, intent-aware generation prompt. This
+// is the "system prompt" for image models: it detects what the user is trying
+// to make (logo, photo, art, 3D, anime, UI…) and appends the quality/style
+// descriptors that steer the diffusion model toward that intent — the same way
+// ChatGPT's image tool rewrites a bare request before generating.
+export function buildImagePrompt(userPrompt: string): string {
+  const base = (userPrompt || "").trim() || "a beautiful, highly detailed artistic image";
+  const p = base.toLowerCase();
+
+  const has = (...words: string[]) => words.some((w) => p.includes(w));
+
+  let style: string;
+  if (has("logo", "icon", "emblem", "brand")) {
+    style = "clean professional vector logo, minimal, flat design, centered, crisp edges, high resolution, plain background";
+  } else if (has("photo", "photograph", "realistic", "photorealistic", "portrait", "headshot")) {
+    style = "photorealistic, ultra detailed, 8k, sharp focus, natural lighting, professional photography, high dynamic range";
+  } else if (has("anime", "manga", "cartoon", "comic")) {
+    style = "vibrant anime illustration, clean line art, cel shading, expressive, highly detailed, studio quality";
+  } else if (has("3d", "render", "blender", "octane")) {
+    style = "high-quality 3D render, physically based rendering, soft global illumination, detailed textures, cinematic";
+  } else if (has("ui", "app", "website", "dashboard", "mockup", "interface")) {
+    style = "clean modern UI design mockup, crisp, well-aligned, professional, high resolution";
+  } else if (has("poster", "banner", "wallpaper", "cover")) {
+    style = "striking poster art, bold composition, dramatic lighting, high detail, 4k";
+  } else if (has("sketch", "drawing", "pencil", "line art")) {
+    style = "detailed hand-drawn sketch, expressive linework, fine shading";
+  } else {
+    style = "highly detailed, masterpiece, vibrant, sharp focus, 4k, professional quality";
+  }
+
+  return `${base}. ${style}.`;
+}
+
+// Map our internal image model IDs to a valid Pollinations model name.
+function pollinationsModelFor(modelId: string): string {
+  switch (modelId) {
+    case "flux2-klein":
+      return "turbo"; // fast, stylized
+    case "sd-3.5-large":
+    case "qwen-image":
+    case "qwen-image-edit":
+    default:
+      return "flux"; // high quality default
+  }
+}
+
 export async function generateImageResponse(
   prompt: string,
   modelId: string,
   _images: Array<{ dataUrl?: string }>,
   signal?: AbortSignal,
 ): Promise<{ imageDataUrl: string; message: string }> {
-  // Use pollinations.ai directly for image generation since it's keyless and doesn't require CORS handling
-  const pollinationsModel = modelId === "flux2-klein" ? "flux" : modelId === "sd-3.5-large" ? "stable-diffusion-3" : "any";
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?nologo=true&enhance=true&model=${pollinationsModel}`;
-  
+  // Pollinations.ai is keyless and CORS-friendly, so we call it directly.
+  const enhancedPrompt = buildImagePrompt(prompt);
+  const pollinationsModel = pollinationsModelFor(modelId);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?nologo=true&enhance=true&model=${pollinationsModel}`;
+
   const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`Image generation failed: ${res.statusText}`);
   }
-  
+
   const blob = await res.blob();
   const imageDataUrl = URL.createObjectURL(blob);
-  
+
   return {
     imageDataUrl,
-    message: "Here is your generated image:"
+    message: "Here is your generated image:",
   };
 }

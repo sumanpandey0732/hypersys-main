@@ -1,4 +1,4 @@
-# Kairo — Multi-Model AI Chat
+# Flyer — Multi-Model AI Chat
 
 A sleek, fast AI chat app with vision, image generation, voice input/output, and
 persistent history. Built with Vite + React + TypeScript + Tailwind + shadcn/ui.

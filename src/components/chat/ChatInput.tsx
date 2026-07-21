@@ -13,7 +13,7 @@ interface ChatInputProps {
   modelKind?: 'Chat' | 'Vision' | 'Image';
 }
 
-export default function ChatInput({ onSend, isLoading, disabled, onStop, modelName = "Kairo", modelKind = 'Chat' }: ChatInputProps) {
+export default function ChatInput({ onSend, isLoading, disabled, onStop, modelName = "Flyer", modelKind = 'Chat' }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
