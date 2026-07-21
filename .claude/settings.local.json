@@ -5,7 +5,9 @@
       "Bash(timeout 150 npx vite build)",
       "Bash(npm run *)",
       "Bash(npx tsc *)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(curl -s --max-time 25 \"https://image.pollinations.ai/models\")",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }
