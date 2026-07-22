@@ -3,7 +3,7 @@
 
 // Default flagship shown as "Flyer". Points at a verified-working model
 // (openai/gpt-oss-120b — confirmed live, ~30s first token on 2026-07-21).
-export const DEFAULT_CHAT_MODEL = "deepseek-ai/deepseek-v4-flash";
+export const DEFAULT_CHAT_MODEL = "z-ai/glm-5.2";
 
 // ---------------------------------------------------------------------------
 // Model → NVIDIA NIM ID mapping
@@ -31,6 +31,8 @@ export const MODEL_REGISTRY: Record<
 > = {
   // ── Featured Chat / Reasoning Models ──────────
   "deepseek-v4-pro":   { nvidiaId: "deepseek-ai/deepseek-v4-pro",             kind: "Chat" },
+  "kimi-k2.6":   { nvidiaId: "moonshotai/kimi-k2.6",             kind: "Chat" },
+  "glm-5.2":   { nvidiaId: "z-ai/glm-5.2",             kind: "Chat" },
   "deepseek-v4-flash": { nvidiaId: "deepseek-ai/deepseek-v4-flash",           kind: "Chat" },
   "llama-4-maverick":  { nvidiaId: "meta/llama-4-maverick-17b-128e-instruct", kind: "Chat" },
   "minimax-m3":        { nvidiaId: "minimaxai/minimax-m3",                    kind: "Chat" },

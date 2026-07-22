@@ -7,7 +7,9 @@
       "Bash(npx tsc *)",
       "Bash(python3 *)",
       "Bash(curl -s --max-time 25 \"https://image.pollinations.ai/models\")",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npx vite *)",
+      "Bash(curl -s -X POST http://localhost:5199/api/mistral -H \"Content-Type: application/json\" -d '{\"model\":\"mistral-small-latest\",\"messages\":[{\"role\":\"user\",\"content\":\"say hi\"}],\"stream\":true,\"max_tokens\":20}' -w \"\\\\n[HTTP %{http_code}]\\\\n\")"
     ]
   }
 }
