@@ -22,7 +22,13 @@ export const DEFAULT_CHAT_MODEL = "deepseek-ai/deepseek-v4-flash";
 // SLOW models (60-100s first-token cold start, then fine): qwen-3.5-397b,
 // minimax-m3, llama-4-maverick, mistral-large, mistral-medium. The chat
 // timeout is sized to let these complete — see REQUEST_TIMEOUT_MS in Chat.tsx.
-export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | 'Vision' | 'Image' }> = {
+// `provider` selects the upstream proxy: NVIDIA NIM (default) or the Mistral
+// API (/api/mistral, keyed by MISTRAL_API_KEY). Mistral models carry a
+// `mistralId` — the exact model name the Mistral API expects.
+export const MODEL_REGISTRY: Record<
+  string,
+  { nvidiaId: string; kind: 'Chat' | 'Vision' | 'Image'; provider?: 'nvidia' | 'mistral'; mistralId?: string }
+> = {
   // ── Featured Chat / Reasoning Models ──────────
   "deepseek-v4-pro":   { nvidiaId: "deepseek-ai/deepseek-v4-pro",             kind: "Chat" },
   "deepseek-v4-flash": { nvidiaId: "deepseek-ai/deepseek-v4-flash",           kind: "Chat" },
@@ -36,18 +42,23 @@ export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | '
   "llama-3.3-70b":     { nvidiaId: "meta/llama-3.3-70b-instruct",             kind: "Chat" },
   "llama-70b":         { nvidiaId: "meta/llama-3.1-70b-instruct",             kind: "Chat" },
   "nemotron-super-49b":{ nvidiaId: "nvidia/llama-3.3-nemotron-super-49b-v1.5",kind: "Chat" },
-  "mistral-large":     { nvidiaId: "mistralai/mistral-large-3-675b-instruct-2512", kind: "Chat" },
-  "mistral-medium":    { nvidiaId: "mistralai/mistral-medium-3.5-128b",       kind: "Chat" },
   "step-3.7-flash":    { nvidiaId: "stepfun-ai/step-3.7-flash",              kind: "Chat" },
+
+  // ── Mistral Models (routed through the Mistral API — MISTRAL_API_KEY) ──
+  "mistral-large":     { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest",  kind: "Chat" },
+  "mistral-medium":    { nvidiaId: "", provider: "mistral", mistralId: "mistral-medium-latest", kind: "Chat" },
+  "mistral-small":     { nvidiaId: "", provider: "mistral", mistralId: "mistral-small-latest",  kind: "Chat" },
 
   // ── More Chat Models ──────────────────────────
   "llama-8b":          { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
   "nemotron-nano-9b":  { nvidiaId: "nvidia/nvidia-nemotron-nano-9b-v2",       kind: "Chat" },
 
-  // ── Vision Models ─────────────────────────────
-  "llama-vision":      { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" },
-  "nemotron-vl":       { nvidiaId: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1", kind: "Vision" },
-  "nemotron-12b-vl":   { nvidiaId: "nvidia/nemotron-nano-12b-v2-vl",          kind: "Vision" },
+  // ── Vision (image understanding) ──────────────
+  // Vision is no longer a user-selectable model kind. Any chat model can
+  // "call" vision on demand — when a user attaches an image, the chat flow
+  // transparently routes that turn through the vision-capable model below.
+  // Kept here (not shown in the picker) purely as that internal engine.
+  "vision-engine":     { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" },
 
   // ── Image Generation Models (via Pollinations) ──
   // The 5 most popular/latest models VERIFIED LIVE on the keyless anonymous
@@ -64,6 +75,14 @@ export const MODEL_REGISTRY: Record<string, { nvidiaId: string; kind: 'Chat' | '
 
 export function getNvidiaId(modelId: string): string {
   return MODEL_REGISTRY[modelId]?.nvidiaId || "openai/gpt-oss-120b";
+}
+
+// The internal vision-capable model any chat model routes through when a user
+// attaches an image. Vision is a capability, not a user-facing model choice.
+export const VISION_ENGINE_MODEL = "vision-engine";
+
+export function isMistralModel(modelId: string): boolean {
+  return MODEL_REGISTRY[modelId]?.provider === "mistral";
 }
 
 export function isVisionModel(modelId: string): boolean {
