@@ -106,6 +106,13 @@ const getUserNvidiaApiKey = () => {
   return localKey ? localKey.trim() : undefined;
 };
 
+// Same "bring your own key" contract for Mistral. Undefined = call the
+// /api/mistral proxy keyless and let the server inject MISTRAL_API_KEY.
+const getUserMistralApiKey = () => {
+  const localKey = localStorage.getItem("VITE_MISTRAL_API_KEY") || localStorage.getItem("MISTRAL_API_KEY");
+  return localKey ? localKey.trim() : undefined;
+};
+
 // ---------------------------------------------------------------------------
 // Message types
 // ---------------------------------------------------------------------------
