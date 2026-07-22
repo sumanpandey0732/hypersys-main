@@ -127,7 +127,7 @@ export interface ChatMessage {
 }
 
 // ---------------------------------------------------------------------------
-// Chat / Vision streaming — via NVIDIA NIM
+// Chat streaming — via NVIDIA NIM or the Mistral API
 // ---------------------------------------------------------------------------
 
 export async function generateChatResponse(
@@ -136,6 +136,12 @@ export async function generateChatResponse(
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ) {
+  // Mistral models go through the dedicated /api/mistral proxy (Mistral API,
+  // MISTRAL_API_KEY). Everything else goes through /api/nvidia (NVIDIA NIM).
+  if (isMistralModel(modelId)) {
+    return generateMistralResponse(messages, modelId, onChunk, signal);
+  }
+
   const nvidiaModel = getNvidiaId(modelId);
 
   // All requests go through the same-origin /api/nvidia proxy, which holds the
@@ -162,7 +168,7 @@ export async function generateChatResponse(
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
     console.error("NVIDIA proxy error:", response.status, errText);
-    
+
     // Try to parse friendly error
     try {
       const parsed = JSON.parse(errText);
