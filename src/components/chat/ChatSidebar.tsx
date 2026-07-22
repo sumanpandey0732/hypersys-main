@@ -25,7 +25,7 @@ export interface AIModel {
 export const AI_MODELS: AIModel[] = [
   // ── Featured Chat / Reasoning Models ──────────
   { id: 'z-ai/glm-5.2', name: 'Flyer', label: 'Flyer', description: 'Fast flagship chat (Default)', emoji: '🧬', kind: 'Chat', featured: true },
-  { id: 'z-ai/glm-5.2', name: 'GLM 5.2', label: 'GLM 5.2', description: 'flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },
+  
    { id: 'moonshotai/kimi-k2.6', name: 'kimi-k2.6', label: 'kimi-k2.6', description: 'kimi-k2.6 flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', label: 'DeepSeek V4', description: 'DeepSeek flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', label: 'DeepSeek V4 Flash', description: 'Fast DeepSeek V4 reasoning', emoji: '⚡', kind: 'Chat', featured: true },
