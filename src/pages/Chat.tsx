@@ -6,7 +6,7 @@ import ChatMessage from '@/components/chat/ChatMessage';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
 import WelcomeScreen from '@/components/chat/WelcomeScreen';
-import { generateChatResponse, generateImageResponse, craftImagePrompt, isVisionModel, isImageModel, VISION_ENGINE_MODEL, type ChatMessage as AiChatMessage } from '@/lib/ai';
+import { generateChatResponse, generateVisionResponse, generateImageResponse, craftImagePrompt, isVisionModel, isImageModel, VISION_ENGINE_MODEL, type ChatMessage as AiChatMessage } from '@/lib/ai';
 import { shouldWebSearch, webSearch, buildSearchContext } from '@/lib/search';
 import type { ChatAttachment } from '@/components/chat/types';
 import { Menu, Sparkles } from 'lucide-react';
@@ -545,20 +545,23 @@ export default function Chat() {
 
         const runPrimary = async () => {
           let fullContent = '';
-          await generateChatResponse(
-            messagesForModel,
-            effectiveModelId,
-            (delta) => {
-              fullContent += delta;
-              if (!receivedAssistantContent) clearColdStartGuard();
-              receivedAssistantContent = true;
-              const liveContent = sanitizeAssistantText(fullContent) || fullContent;
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: liveContent } : m)),
-              );
-            },
-            abortControllerRef.current!.signal
-          );
+          const handleDelta = (delta: string) => {
+            fullContent += delta;
+            if (!receivedAssistantContent) clearColdStartGuard();
+            receivedAssistantContent = true;
+            const liveContent = sanitizeAssistantText(fullContent) || fullContent;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: liveContent } : m)),
+            );
+          };
+          // Image-analysis turns run through the vision engine chain, which
+          // auto-falls-back across engines if one is down. Everything else is a
+          // normal chat completion.
+          if (usesVision) {
+            await generateVisionResponse(messagesForModel, handleDelta, abortControllerRef.current!.signal);
+          } else {
+            await generateChatResponse(messagesForModel, effectiveModelId, handleDelta, abortControllerRef.current!.signal);
+          }
           return sanitizeAssistantText(fullContent);
         };
 

@@ -58,9 +58,12 @@ export const MODEL_REGISTRY: Record<
   // ── Vision (image understanding) ──────────────
   // Vision is no longer a user-selectable model kind. Any chat model can
   // "call" vision on demand — when a user attaches an image, the chat flow
-  // transparently routes that turn through the vision-capable model below.
-  // Kept here (not shown in the picker) purely as that internal engine.
-  "vision-engine":     { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" },
+  // transparently routes that turn through the vision-capable engines below.
+  // Kept here (not shown in the picker). The primary is tried first; if it
+  // 404s / errors / hangs, the next fallback engine is tried automatically.
+  "vision-engine":     { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" }, // primary
+  "vision-engine-2":   { nvidiaId: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1", kind: "Vision" }, // fallback 1
+  "vision-engine-3":   { nvidiaId: "meta/llama-3.2-90b-vision-instruct",      kind: "Vision" }, // fallback 2
 
   // ── Image Generation Models (via Pollinations) ──
   // The 5 most popular/latest models VERIFIED LIVE on the keyless anonymous
@@ -82,6 +85,10 @@ export function getNvidiaId(modelId: string): string {
 // The internal vision-capable model any chat model routes through when a user
 // attaches an image. Vision is a capability, not a user-facing model choice.
 export const VISION_ENGINE_MODEL = "vision-engine";
+
+// Ordered vision engines: primary first, then fallbacks. If one 404s / errors
+// (a NIM engine can be pulled from the account at any time), the next is tried.
+export const VISION_ENGINE_FALLBACKS = ["vision-engine", "vision-engine-2", "vision-engine-3"];
 
 export function isMistralModel(modelId: string): boolean {
   return MODEL_REGISTRY[modelId]?.provider === "mistral";
@@ -186,8 +193,43 @@ export async function generateChatResponse(
 }
 
 // ---------------------------------------------------------------------------
-// Mistral streaming — via the Mistral API (/api/mistral proxy)
+// Vision — with automatic fallback across engines
 // ---------------------------------------------------------------------------
+
+// Route an image-analysis turn through the vision engines in order. The first
+// engine that actually streams content wins. If an engine errors BEFORE any
+// token arrives (404 pulled model, cold-start timeout, 5xx), the next engine is
+// tried transparently. Once tokens have started we never switch — that would
+// duplicate text mid-stream. Returns the id of the engine that answered.
+export async function generateVisionResponse(
+  messages: ChatMessage[],
+  onChunk: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  let lastErr: unknown;
+  for (const engineId of VISION_ENGINE_FALLBACKS) {
+    let started = false;
+    try {
+      await generateChatResponse(
+        messages,
+        engineId,
+        (delta) => { started = true; onChunk(delta); },
+        signal,
+      );
+      return engineId; // completed successfully
+    } catch (err) {
+      // Never retry a user-initiated abort, and never fall back once the model
+      // has already emitted content (avoids duplicated/garbled output).
+      if (err instanceof Error && err.name === "AbortError") throw err;
+      if (started) throw err;
+      lastErr = err;
+      // else: try the next engine in the chain
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error("All vision engines are currently unavailable. Please try again.");
+}
 
 async function generateMistralResponse(
   messages: ChatMessage[],
@@ -374,6 +416,18 @@ export async function craftImagePrompt(
   }
 }
 
+// Image-model fallback order: the requested model first, then 2 proven
+// alternates. If a Pollinations model 500s / times out (a model can go down or
+// get gated to the paid tier), the next one is tried so generation still
+// succeeds. "flux" (quality) → "turbo" (fast) → "stable-diffusion" (baseline).
+const IMAGE_MODEL_FALLBACKS = ["flux", "turbo", "stable-diffusion"];
+
+function imageFallbackChain(modelId: string): string[] {
+  const primary = pollinationsModelFor(modelId);
+  // Primary first, then the standard fallbacks, de-duplicated.
+  return [...new Set([primary, ...IMAGE_MODEL_FALLBACKS])];
+}
+
 export async function generateImageResponse(
   prompt: string,
   modelId: string,
@@ -383,19 +437,36 @@ export async function generateImageResponse(
   // Pollinations.ai is keyless and CORS-friendly, so we call it directly.
   // `prompt` here is already the final, model-crafted (or enhanced) prompt.
   const enhancedPrompt = (prompt || "").trim() || buildImagePrompt("");
-  const pollinationsModel = pollinationsModelFor(modelId);
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?nologo=true&enhance=true&model=${pollinationsModel}`;
+  const encoded = encodeURIComponent(enhancedPrompt);
 
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`Image generation failed: ${res.statusText}`);
+  let lastErr: unknown;
+  for (const model of imageFallbackChain(modelId)) {
+    const url = `https://image.pollinations.ai/prompt/${encoded}?nologo=true&enhance=true&model=${model}`;
+    try {
+      const res = await fetch(url, { signal });
+      if (!res.ok) {
+        lastErr = new Error(`Image generation failed (${model}): ${res.status} ${res.statusText}`);
+        continue; // try the next model in the chain
+      }
+      const blob = await res.blob();
+      // Guard against a 200 that isn't actually an image (some tiers return an
+      // HTML/error page with a 200) — treat a non-image / empty body as failure.
+      if (blob.size === 0 || (blob.type && !blob.type.startsWith("image/"))) {
+        lastErr = new Error(`Image generation returned no image (${model}).`);
+        continue;
+      }
+      return {
+        imageDataUrl: URL.createObjectURL(blob),
+        message: "Here is your generated image:",
+      };
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") throw err;
+      lastErr = err;
+      // try the next model in the chain
+    }
   }
 
-  const blob = await res.blob();
-  const imageDataUrl = URL.createObjectURL(blob);
-
-  return {
-    imageDataUrl,
-    message: "Here is your generated image:",
-  };
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error("Image generation is temporarily unavailable. Please try again.");
 }
