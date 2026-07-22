@@ -3,7 +3,7 @@
 
 // Default flagship shown as "Flyer". Points at a verified-working model
 // (openai/gpt-oss-120b — confirmed live, ~30s first token on 2026-07-21).
-export const DEFAULT_CHAT_MODEL = "z-ai/glm-5.2";
+export const DEFAULT_CHAT_MODEL = "mistral-large";
 
 // ---------------------------------------------------------------------------
 // Model → NVIDIA NIM ID mapping
