@@ -6,7 +6,7 @@ import ChatMessage from '@/components/chat/ChatMessage';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
 import WelcomeScreen from '@/components/chat/WelcomeScreen';
-import { generateChatResponse, generateImageResponse, isVisionModel, type ChatMessage as AiChatMessage } from '@/lib/ai';
+import { generateChatResponse, generateImageResponse, craftImagePrompt, isVisionModel, isImageModel, VISION_ENGINE_MODEL, type ChatMessage as AiChatMessage } from '@/lib/ai';
 import { shouldWebSearch, webSearch, buildSearchContext } from '@/lib/search';
 import type { ChatAttachment } from '@/components/chat/types';
 import { Menu, Sparkles } from 'lucide-react';
@@ -46,7 +46,12 @@ interface Conversation {
 // Verified worst-case first-token was ~100s on 2026-07-21.
 const REQUEST_TIMEOUT_MS = 130_000;
 const SLOW_REQUEST_TIMEOUT_MS = 130_000;
-const DEFAULT_VISION_MODEL = 'llama-vision';
+const DEFAULT_VISION_MODEL = VISION_ENGINE_MODEL;
+// Default renderer for a text-to-image request that fires from a Chat model,
+// and the chat model used to author an image prompt when the user is on an
+// Image model (so the prompt is always written by a chat model).
+const DEFAULT_IMAGE_MODEL = 'flux';
+const DEFAULT_CHAT_MODEL_ID = 'deepseek-v4-flash';
 
 // Brand persona — makes the assistant identify as Flyer (ChatGPT-style feel)
 // rather than leaking the underlying model provider. Injected as the first
@@ -461,10 +466,25 @@ export default function Chat() {
 
     try {
       if (isImageGen) {
-        const imagePrompt = trimmedContent || 'a beautiful, highly detailed artistic image';
+        const rawPrompt = trimmedContent || 'a beautiful, highly detailed artistic image';
+
+        // Which model actually renders the image: the selected model if it's an
+        // Image model, otherwise our default renderer (FLUX). A Chat model that
+        // triggered a text-to-image request "calls" the image tool this way.
+        const renderModelId = isImageModel(selectedModel) ? selectedModel : DEFAULT_IMAGE_MODEL;
+
+        // The prompt is crafted BY a chat model (ChatGPT-style). If the user is
+        // on an Image model, use the default chat model to write the prompt.
+        const promptAuthorModel = isImageModel(selectedModel) ? DEFAULT_CHAT_MODEL_ID : selectedModel;
+        const imagePrompt = await craftImagePrompt(
+          rawPrompt,
+          promptAuthorModel,
+          abortControllerRef.current.signal,
+        );
+
         const { imageDataUrl, message } = await generateImageResponse(
           imagePrompt,
-          selectedModel,
+          renderModelId,
           imageAttachments.map(a => ({ dataUrl: a.url })),
           abortControllerRef.current.signal
         );

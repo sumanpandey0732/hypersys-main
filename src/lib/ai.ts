@@ -184,8 +184,51 @@ export async function generateChatResponse(
 }
 
 // ---------------------------------------------------------------------------
-// Stream pump (OpenAI-compatible SSE)
+// Mistral streaming — via the Mistral API (/api/mistral proxy)
 // ---------------------------------------------------------------------------
+
+async function generateMistralResponse(
+  messages: ChatMessage[],
+  modelId: string,
+  onChunk: (text: string) => void,
+  signal?: AbortSignal,
+) {
+  const mistralModel = MODEL_REGISTRY[modelId]?.mistralId || "mistral-large-latest";
+
+  const userKey = getUserMistralApiKey();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (userKey) headers["X-Mistral-Api-Key"] = userKey;
+
+  const response = await fetch("/api/mistral", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: mistralModel,
+      messages,
+      stream: true,
+      temperature: 0.7,
+      top_p: 0.95,
+      max_tokens: 4096,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error("Mistral proxy error:", response.status, errText);
+    try {
+      const parsed = JSON.parse(errText);
+      if (parsed.detail) throw new Error(typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail));
+      if (parsed.error && typeof parsed.error === "string") throw new Error(parsed.error);
+    } catch (e) {
+      if (e instanceof Error && e.message !== errText) throw e;
+    }
+    throw new Error(friendlyHttpError(response.status, "Mistral"));
+  }
+
+  // The Mistral API is OpenAI-compatible on the wire, so the same SSE pump works.
+  await pumpOpenAiStream(response, onChunk);
+}
 
 async function pumpOpenAiStream(
   response: Response,
@@ -275,6 +318,60 @@ function pollinationsModelFor(modelId: string): string {
   return POLLINATIONS_MODELS.has(modelId) ? modelId : "flux";
 }
 
+// System prompt that turns any chat model into an image-prompt engineer. The
+// chat model reads the user's plain request and writes ONE rich, concrete
+// diffusion prompt — subject, composition, lighting, style, quality tags —
+// exactly the way ChatGPT's image tool rewrites a bare request before drawing.
+const IMAGE_PROMPT_ENGINEER_SYSTEM = [
+  "You are an expert image-prompt engineer for a text-to-image diffusion model.",
+  "The user will describe an image they want. Rewrite it into ONE single, vivid,",
+  "highly detailed generation prompt (roughly 40-80 words).",
+  "",
+  "RULES:",
+  "- Output ONLY the final prompt text — no preamble, no quotes, no markdown, no explanation.",
+  "- Keep the user's core subject and intent; never invent a different subject.",
+  "- Add concrete visual detail: composition, camera/angle, lighting, mood, color palette,",
+  "  medium/style, and quality tags (e.g. 8k, sharp focus, highly detailed) that fit the intent.",
+  "- Infer the right style from the request (logo, photoreal, anime, 3D render, UI mockup, poster, sketch…).",
+  "- Do not include negative prompts or parameters. Write one flowing descriptive prompt.",
+].join("\n");
+
+// Have the selected chat model craft the image prompt. Falls back to the fast
+// rule-based buildImagePrompt() if the model is unavailable, errors, or returns
+// nothing — so image generation never breaks on a prompt-crafting hiccup.
+export async function craftImagePrompt(
+  userPrompt: string,
+  chatModelId: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const base = (userPrompt || "").trim();
+  if (!base) return buildImagePrompt(userPrompt);
+
+  try {
+    let crafted = "";
+    await generateChatResponse(
+      [
+        { role: "system", content: IMAGE_PROMPT_ENGINEER_SYSTEM },
+        { role: "user", content: base },
+      ],
+      chatModelId,
+      (delta) => { crafted += delta; },
+      signal,
+    );
+    // Strip any stray reasoning/quoting and collapse whitespace.
+    const cleaned = crafted
+      .replace(/<\s*think\s*>[\s\S]*?<\s*\/\s*think\s*>/gi, "")
+      .replace(/^["'`\s]+|["'`\s]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return cleaned.length >= 8 ? cleaned : buildImagePrompt(userPrompt);
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
+    // Any non-abort failure → fall back to the deterministic enhancer.
+    return buildImagePrompt(userPrompt);
+  }
+}
+
 export async function generateImageResponse(
   prompt: string,
   modelId: string,
@@ -282,7 +379,8 @@ export async function generateImageResponse(
   signal?: AbortSignal,
 ): Promise<{ imageDataUrl: string; message: string }> {
   // Pollinations.ai is keyless and CORS-friendly, so we call it directly.
-  const enhancedPrompt = buildImagePrompt(prompt);
+  // `prompt` here is already the final, model-crafted (or enhanced) prompt.
+  const enhancedPrompt = (prompt || "").trim() || buildImagePrompt("");
   const pollinationsModel = pollinationsModelFor(modelId);
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?nologo=true&enhance=true&model=${pollinationsModel}`;
 
