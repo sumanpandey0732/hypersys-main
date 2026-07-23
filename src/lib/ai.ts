@@ -3,7 +3,7 @@
 
 // Default flagship shown as "Flyer". Points at a verified-working model
 // (openai/gpt-oss-120b — confirmed live, ~30s first token on 2026-07-21).
-export const DEFAULT_CHAT_MODEL = "mistral-large";
+export const DEFAULT_CHAT_MODEL = "mistral-large-latest";
 
 // ---------------------------------------------------------------------------
 // Model → NVIDIA NIM ID mapping
@@ -79,7 +79,7 @@ export const MODEL_REGISTRY: Record<
 };
 
 export function getNvidiaId(modelId: string): string {
-  return MODEL_REGISTRY[modelId]?.nvidiaId || "openai/gpt-oss-120b";
+  return MODEL_REGISTRY[modelId]?.nvidiaId || "deepseek-v4-flash";
 }
 
 // The internal vision-capable model any chat model routes through when a user

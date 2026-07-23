@@ -175,10 +175,10 @@ const fileToDataUrl = (file: File): Promise<string> => {
 
 export default function Chat() {
   const { user, isGuest } = useAuth();
-  const [accentColor, setAccentColor] = useState(() => localStorage.getItem('aetheris_theme_color') || '172 66% 50%');
+  const [accentColor, setAccentColor] = useState(() => localStorage.getItem('Flyer_theme_color') || '172 66% 50%');
 
   useEffect(() => {
-    localStorage.setItem('aetheris_theme_color', accentColor);
+    localStorage.setItem('Flyer_theme_color', accentColor);
     document.documentElement.style.setProperty('--primary', accentColor);
     document.documentElement.style.setProperty('--ring', accentColor);
     document.documentElement.style.setProperty('--accent', accentColor);

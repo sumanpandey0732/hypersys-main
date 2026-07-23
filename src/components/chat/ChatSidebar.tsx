@@ -24,7 +24,7 @@ export interface AIModel {
 // hang — were removed so the picker never offers a model that fails to fetch.
 export const AI_MODELS: AIModel[] = [
   // ── Featured Chat / Reasoning Models ──────────
-  { id: 'mistral-large', name: 'Flyer', label: 'Flyer', description: 'Fast flagship chat (Default)', emoji: '🧬', kind: 'Chat', featured: true },
+  { id: 'mistral-large-latest', name: 'Flyer', label: 'Flyer', description: 'Fast flagship chat (Default)', emoji: '🧬', kind: 'Chat', featured: true },
   
   { id: 'moonshotai/kimi-k2.6', name: 'kimi-k2.6', label: 'kimi-k2.6', description: 'kimi-k2.6 flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', label: 'DeepSeek V4', description: 'DeepSeek flagship reasoning', emoji: '🧠', kind: 'Chat', featured: true },

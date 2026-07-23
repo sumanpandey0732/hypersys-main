@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Firestore security rules for Aetheris.
+// Firestore security rules for Flyer.
 // Each user may read/write ONLY their own conversations and messages.
 // Ownership is determined by the `userId` field stored on every document,
 // which must equal the authenticated user's uid.

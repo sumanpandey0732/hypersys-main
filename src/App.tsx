@@ -72,7 +72,7 @@ function AppRoutes() {
 
 const App = () => {
   useEffect(() => {
-    const color = localStorage.getItem('aetheris_theme_color') || '172 66% 50%';
+    const color = localStorage.getItem('Flyer_theme_color') || '172 66% 50%';
     document.documentElement.style.setProperty('--primary', color);
     document.documentElement.style.setProperty('--ring', color);
     document.documentElement.style.setProperty('--accent', color);

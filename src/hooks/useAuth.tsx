@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(() => {
-    return localStorage.getItem('aetheris_guest') === 'true';
+    return localStorage.getItem('Flyer_guest') === 'true';
   });
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       if (firebaseUser) {
         setIsGuest(false);
-        localStorage.removeItem('aetheris_guest');
+        localStorage.removeItem('Flyer_guest');
       }
     });
 
@@ -87,13 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     setIsGuest(false);
-    localStorage.removeItem('aetheris_guest');
+    localStorage.removeItem('Flyer_guest');
     await firebaseSignOut(auth);
   };
 
   const continueAsGuest = () => {
     setIsGuest(true);
-    localStorage.setItem('aetheris_guest', 'true');
+    localStorage.setItem('Flyer_guest', 'true');
   };
 
   return (
