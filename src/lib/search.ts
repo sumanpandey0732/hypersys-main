@@ -29,6 +29,74 @@ const LOOKUP_INTENT = /\b(who (?:is|are|won)|what (?:is|are) the (?:latest|curre
 // Phrases that clearly do NOT need the web (creative / self-referential / code).
 const NON_FACTUAL = /\b(write|compose|generate|create|draft|imagine|story|poem|joke|rewrite|refactor|debug|translate|summari[sz]e this|explain this code)\b/i;
 
+import { getCompleteChatResponse, isMistralModel } from "@/lib/ai";
+
+export interface SmartSearchEvaluation {
+  shouldSearch: boolean;
+  searchQuery: string;
+}
+
+/**
+ * ChatGPT-style web search evaluation & search query generator.
+ * Uses a fast AI model to think whether search is needed, and generates optimal search keywords.
+ */
+export async function evaluateSmartWebSearch(
+  input: string,
+  chatModelId: string,
+  signal?: AbortSignal,
+): Promise<SmartSearchEvaluation> {
+  const text = (input || "").trim();
+  if (text.length < 4) {
+    return { shouldSearch: false, searchQuery: "" };
+  }
+
+  // Fast pattern heuristic check
+  const heuristicMatch = shouldWebSearch(text);
+
+  // Fast AI classifier (Ministral 8B for Mistral or DeepSeek V4 Flash for NIM)
+  const fastModel = isMistralModel(chatModelId) ? "ministral-8b" : "deepseek-v4-flash";
+
+  try {
+    const systemPrompt = [
+      "You are an expert AI Web Search Evaluator & Query Synthesizer (like ChatGPT).",
+      "Analyze the user's message to determine if accurate, up-to-date, recent, or real-time web search information is needed.",
+      "If web search IS needed, synthesize a clean, standalone search query (keywords only, without filler like 'search for').",
+      "",
+      "Respond ONLY with valid JSON:",
+      '{"shouldSearch": true, "searchQuery": "clean search terms"}',
+      "or",
+      '{"shouldSearch": false, "searchQuery": ""}',
+    ].join("\n");
+
+    const response = await getCompleteChatResponse(
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: text },
+      ],
+      fastModel,
+      signal,
+    );
+
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (typeof parsed.shouldSearch === "boolean") {
+        return {
+          shouldSearch: parsed.shouldSearch,
+          searchQuery: (parsed.searchQuery || text).trim(),
+        };
+      }
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
+  }
+
+  return {
+    shouldSearch: heuristicMatch,
+    searchQuery: text,
+  };
+}
+
 /**
  * Heuristic: should this user turn be grounded with a web search?
  * Conservative on purpose — false positives waste a SerpApi call and can

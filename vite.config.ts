@@ -255,7 +255,7 @@ async function proxySearch(
     return;
   }
 
-  const results = (data.organic_results || []).slice(0, num).map((r: any) => ({
+  const organic = (data.organic_results || []).map((r: any) => ({
     title: r.title || "",
     link: r.link || "",
     snippet: r.snippet || "",
@@ -263,19 +263,47 @@ async function proxySearch(
     date: r.date || null,
   }));
 
-  // SerpApi returns either answer_box or an ai_overview depending on the query.
-  const ab = data.answer_box;
+  const news = (data.news_results || []).map((r: any) => ({
+    title: r.title || "",
+    link: r.link || "",
+    snippet: r.snippet || "",
+    source: r.source || null,
+    date: r.date || null,
+  }));
+
+  const topStories = (data.top_stories || []).map((r: any) => ({
+    title: r.title || "",
+    link: r.link || "",
+    snippet: r.original_snippet || r.snippet || "",
+    source: r.source || null,
+    date: r.date || null,
+  }));
+
+  const combined = [...organic, ...news, ...topStories];
+
+  const seenLinks = new Set<string>();
+  const results = combined.filter((r) => {
+    if (!r.title || (!r.snippet && !r.link)) return false;
+    if (r.link && seenLinks.has(r.link)) return false;
+    if (r.link) seenLinks.add(r.link);
+    return true;
+  }).slice(0, num);
+
+  const ab = data.answer_box || data.knowledge_graph || data.sports_results;
   const overview = data.ai_overview?.text_blocks
     ?.map((b: any) => b.snippet)
     .filter(Boolean)
     .join(" ");
   const answerBox = ab
-    ? { title: ab.title || null, answer: ab.answer || ab.snippet || null }
+    ? { title: ab.title || ab.name || null, answer: ab.answer || ab.snippet || ab.description || null }
     : overview
-    ? { title: null, answer: overview }
+    ? { title: "AI Overview", answer: overview }
     : null;
 
-  const related = data.related_searches ? data.related_searches.map((r: any) => r.query) : [];
+  const related = [
+    ...(data.related_questions || []).map((q: any) => q.question),
+    ...(data.related_searches || []).map((r: any) => r.query),
+  ].filter(Boolean).slice(0, 4);
 
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ query, answerBox, results, related }));

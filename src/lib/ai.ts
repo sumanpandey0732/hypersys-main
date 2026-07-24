@@ -58,9 +58,10 @@ export function getNvidiaId(modelId: string): string {
 }
 
 // The internal vision-capable model any non-vision chat model routes through when an image is attached.
-export const VISION_ENGINE_MODEL = "vision-engine";
+// Defaults to Mistral Vision (pixtral-12b) as requested.
+export const VISION_ENGINE_MODEL = "pixtral-12b";
 
-export const VISION_ENGINE_FALLBACKS = ["vision-engine", "vision-engine-2", "vision-engine-3"];
+export const VISION_ENGINE_FALLBACKS = ["pixtral-12b", "mistral-large-latest", "vision-engine", "vision-engine-2", "vision-engine-3"];
 
 export function isMistralModel(modelId: string): boolean {
   return MODEL_REGISTRY[modelId]?.provider === "mistral";
@@ -168,6 +169,69 @@ export async function generateChatResponse(
   }
 
   await pumpOpenAiStream(response, onChunk);
+}
+
+/**
+ * Non-streaming helper to get a complete chat response text.
+ */
+export async function getCompleteChatResponse(
+  messages: ChatMessage[],
+  modelId: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  let text = "";
+  await generateChatResponse(
+    messages,
+    modelId,
+    (chunk) => { text += chunk; },
+    signal,
+  );
+  return text.trim();
+}
+
+/**
+ * Evaluates whether an image generation should be triggered based on AI intent analysis or patterns.
+ */
+export async function evaluateImageIntent(
+  userPrompt: string,
+  selectedModelId: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const text = (userPrompt || "").trim();
+  if (!text) return false;
+
+  // If user selected an Image model explicitly, always generate image
+  if (isImageModel(selectedModelId)) return true;
+
+  // Pattern-based heuristic check
+  const hasImageKeyword = /\b(generate|create|draw|design|render|illustrate|paint|sketch)\b.*\b(image|photo|picture|art|artwork|illustration|logo|icon|wallpaper|poster|banner|avatar|painting|drawing)\b/i.test(text) ||
+    /\b(image|photo|picture|art|artwork|illustration|logo|icon|wallpaper|poster|banner|avatar|painting|drawing)\b.*\b(generate|create|make|draw|design|render|illustrate|paint|sketch)\b/i.test(text);
+
+  if (hasImageKeyword) return true;
+
+  // Fast AI classifier (uses Ministral 8B for Mistral or DeepSeek V4 Flash for NIM)
+  const fastModel = isMistralModel(selectedModelId) ? "ministral-8b" : "deepseek-v4-flash";
+  try {
+    const prompt = `Determine if the following user request intends for you to CREATE, GENERATE, DRAW, RENDER, or PAINT a new visual image, photo, or picture.
+
+User request: "${text}"
+
+Respond with ONLY the word "YES" if an image should be generated, or "NO" if it is a general chat, explanation, code, or text question.`;
+
+    const result = await getCompleteChatResponse(
+      [{ role: "user", content: prompt }],
+      fastModel,
+      signal,
+    );
+
+    const upper = result.toUpperCase();
+    if (upper.includes("YES")) return true;
+    if (upper.includes("NO")) return false;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -400,20 +464,20 @@ export async function craftVisionPrompt(
 // System prompt that turns any chat model into an expansive Master Image Prompt Engineer.
 // The chat model expands a user's image request into a ~1000-word master generation prompt.
 const IMAGE_PROMPT_ENGINEER_SYSTEM = [
-  "You are an expert master Image Prompt Engineer for text-to-image AI diffusion models.",
-  "The user wants an image generated. Expand their request into an EXHAUSTIVE, ULTRA-DETAILED MASTER GENERATION PROMPT (~500-1000 words).",
+  "You are an expert Master Image Prompt Engineer for high-end text-to-image AI diffusion models (FLUX, Midjourney, Stable Diffusion).",
+  "The user wants an image created. Expand their request into an EXHAUSTIVE, ULTRA-DETAILED MASTER GENERATION PROMPT (~1000 words).",
   "",
-  "COVER ALL OF THE FOLLOWING IN THE GENERATED MASTER PROMPT:",
-  "1. SUBJECT & CHARACTER DETAILS: Precise anatomical, structural, facial, clothing, material, posture, and emotional expressions.",
-  "2. SCENE ENVIRONMENT & COMPOSITION: Foreground, midground, background architecture, depth of field, camera distance/angle, framing.",
-  "3. LIGHTING & COLOR HARMONY: Specific light sources, volumetric rays, shadow gradients, ambient bounce, color palette, color grading.",
-  "4. ARTISTIC MEDIUM & STYLE: Photography parameters (85mm lens, f/1.4 aperture, cinematic 35mm film grain) OR digital art medium (3D octane render, anime illustration, oil painting, vector emblem).",
-  "5. TEXTURES & MICRO-DETAILS: Surface roughness, skin pores, fabric weaves, atmospheric fog, reflections, intricate patterns.",
-  "6. RENDERING QUALITY TAGS: 8k resolution, photorealistic, sharp focus, masterpiece, cinematic lighting, ultra-detailed.",
+  "COVER ALL OF THE FOLLOWING IN EXTREME DETAIL IN THE MASTER GENERATION PROMPT:",
+  "1. SUBJECT & CHARACTER DECONSTRUCTION: Anatomical structure, hair style & texture, facial expression, posture, skin pores, apparel weave, accessories, and exact micro-details.",
+  "2. SCENE ENVIRONMENT & SPATIAL COMPOSITION: Foreground, midground, background architecture, depth of field, camera distance/angle, horizon line, environmental props, atmospheric haze, volumetric fog.",
+  "3. LIGHTING, SHADOWS & COLOR PALETTE: Direct and indirect light sources, soft global illumination, volumetric rays, shadow gradients, ambient bounce, color temperature (K), precise HSL color palette, specular highlights.",
+  "4. ARTISTIC MEDIUM & OPTICAL SPECIFICATIONS: Camera hardware (e.g. Hasselblad H6D, 85mm prime lens, f/1.4 aperture, ISO 100, shutter speed 1/250s, 35mm film grain) OR digital art medium (3D Octane Render 8K, Unreal Engine 5, anime line art, oil painting on textured canvas).",
+  "5. MICRO-TEXTURES & MATERIAL PROPERTIES: Subsurface scattering, surface roughness, metallic sheen, glass refraction, water droplets, dust motes floating in light.",
+  "6. RENDER QUALITY & MASTERPIECE TAGS: 8k UHD resolution, hyper-detailed, sharp focus, cinematic lighting, masterpiece composition.",
   "",
   "RULES:",
-  "- Output ONLY the final expanded master prompt text — no preambles, no conversational intro, no quotes.",
-  "- Keep the user's original core subject intact while enriching every visual detail.",
+  "- Output ONLY the final generated master prompt text — no preambles, no conversational intro, no quotes, no markdown wrappers around the prompt.",
+  "- Keep the user's core intent completely intact while enriching every visual dimension to create an exhaustive master prompt (~1000 words).",
 ].join("\n");
 
 // Have the selected chat model craft the image prompt.
@@ -466,25 +530,65 @@ export async function generateImageResponse(
   _images: Array<{ dataUrl?: string }>,
   signal?: AbortSignal,
 ): Promise<{ imageDataUrl: string; message: string }> {
-  // Pollinations.ai is keyless and CORS-friendly, so we call it directly.
-  // `prompt` here is already the final, model-crafted (or enhanced) prompt.
-  const enhancedPrompt = (prompt || "").trim() || buildImagePrompt("");
-  const encoded = encodeURIComponent(enhancedPrompt);
-
+  const fullPrompt = (prompt || "").trim() || buildImagePrompt("");
   let lastErr: unknown;
+
+  // 1. Primary: HTTP POST to https://image.pollinations.ai/prompt
+  // POST payload safely carries ~1000-word prompts without triggering 403 URI length limits!
   for (const model of imageFallbackChain(modelId)) {
-    const url = `https://image.pollinations.ai/prompt/${encoded}?nologo=true&enhance=true&model=${model}`;
+    try {
+      const res = await fetch("https://image.pollinations.ai/prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: fullPrompt,
+          model,
+          width: 1024,
+          height: 1024,
+          nologo: true,
+          enhance: false,
+        }),
+        signal,
+      });
+
+      if (!res.ok) {
+        lastErr = new Error(`POST image generation failed (${model}): ${res.status} ${res.statusText}`);
+        continue;
+      }
+
+      const blob = await res.blob();
+      if (blob.size === 0 || (blob.type && !blob.type.startsWith("image/"))) {
+        lastErr = new Error(`Image generation returned no image blob (${model}).`);
+        continue;
+      }
+
+      return {
+        imageDataUrl: URL.createObjectURL(blob),
+        message: "Here is your generated image:",
+      };
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") throw err;
+      lastErr = err;
+    }
+  }
+
+  // 2. Fallback: GET with condensed 250-character prompt summary to guarantee success
+  const condensedPrompt = fullPrompt.length > 250
+    ? fullPrompt.slice(0, 247).replace(/\s+\S*$/, "") + "..."
+    : fullPrompt;
+  const encoded = encodeURIComponent(condensedPrompt);
+
+  for (const model of imageFallbackChain(modelId)) {
+    const url = `https://image.pollinations.ai/prompt/${encoded}?nologo=true&model=${model}`;
     try {
       const res = await fetch(url, { signal });
       if (!res.ok) {
-        lastErr = new Error(`Image generation failed (${model}): ${res.status} ${res.statusText}`);
-        continue; // try the next model in the chain
+        lastErr = new Error(`GET image generation failed (${model}): ${res.status} ${res.statusText}`);
+        continue;
       }
       const blob = await res.blob();
-      // Guard against a 200 that isn't actually an image (some tiers return an
-      // HTML/error page with a 200) — treat a non-image / empty body as failure.
       if (blob.size === 0 || (blob.type && !blob.type.startsWith("image/"))) {
-        lastErr = new Error(`Image generation returned no image (${model}).`);
+        lastErr = new Error(`Image generation returned no image blob (${model}).`);
         continue;
       }
       return {
@@ -494,7 +598,6 @@ export async function generateImageResponse(
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") throw err;
       lastErr = err;
-      // try the next model in the chain
     }
   }
 

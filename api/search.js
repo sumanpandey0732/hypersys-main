@@ -43,11 +43,7 @@ export default async function handler(req, res) {
 
   const data = await upstream.json();
 
-  const answerBox = data.answer_box
-    ? { title: data.answer_box.title || null, answer: data.answer_box.answer || data.answer_box.snippet || null }
-    : null;
-
-  const results = (data.organic_results || []).slice(0, 6).map((r) => ({
+  const organic = (data.organic_results || []).map((r) => ({
     title: r.title || "",
     snippet: r.snippet || "",
     link: r.link || "",
@@ -55,12 +51,54 @@ export default async function handler(req, res) {
     date: r.date || null,
   }));
 
+  const news = (data.news_results || []).map((r) => ({
+    title: r.title || "",
+    snippet: r.snippet || "",
+    link: r.link || "",
+    source: r.source || null,
+    date: r.date || null,
+  }));
+
+  const topStories = (data.top_stories || []).map((r) => ({
+    title: r.title || "",
+    snippet: r.original_snippet || r.snippet || "",
+    link: r.link || "",
+    source: r.source || null,
+    date: r.date || null,
+  }));
+
+  const combined = [...organic, ...news, ...topStories];
+
+  const seenLinks = new Set();
+  const results = combined.filter((r) => {
+    if (!r.title || (!r.snippet && !r.link)) return false;
+    if (r.link && seenLinks.has(r.link)) return false;
+    if (r.link) seenLinks.add(r.link);
+    return true;
+  }).slice(0, 6);
+
+  const ab = data.answer_box || data.knowledge_graph || data.sports_results;
+  const overview = data.ai_overview?.text_blocks
+    ?.map((b) => b.snippet)
+    .filter(Boolean)
+    .join(" ");
+  const answerBox = ab
+    ? { title: ab.title || ab.name || null, answer: ab.answer || ab.snippet || ab.description || null }
+    : overview
+    ? { title: "AI Overview", answer: overview }
+    : null;
+
+  const related = [
+    ...(data.related_questions || []).map((q) => q.question),
+    ...(data.related_searches || []).map((r) => r.query),
+  ].filter(Boolean).slice(0, 4);
+
   res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300");
   res.status(200).json({
     query,
     answerBox,
     results,
-    related: (data.related_questions || []).slice(0, 3).map((q) => q.question).filter(Boolean),
+    related,
   });
 }
 

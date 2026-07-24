@@ -6,8 +6,8 @@ import ChatMessage from '@/components/chat/ChatMessage';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
 import WelcomeScreen from '@/components/chat/WelcomeScreen';
-import { generateChatResponse, generateVisionResponse, generateImageResponse, craftImagePrompt, craftVisionPrompt, isVisionModel, isVisionCapableModel, isImageModel, VISION_ENGINE_MODEL, type ChatMessage as AiChatMessage, type ContentPart } from '@/lib/ai';
-import { shouldWebSearch, webSearch, buildSearchContext } from '@/lib/search';
+import { generateChatResponse, generateVisionResponse, generateImageResponse, craftImagePrompt, craftVisionPrompt, evaluateImageIntent, isVisionModel, isVisionCapableModel, isImageModel, VISION_ENGINE_MODEL, type ChatMessage as AiChatMessage, type ContentPart } from '@/lib/ai';
+import { evaluateSmartWebSearch, webSearch, buildSearchContext } from '@/lib/search';
 import type { ChatAttachment } from '@/components/chat/types';
 import { Menu, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -382,12 +382,13 @@ export default function Chat() {
     const hasImages = imageAttachments.length > 0;
 
     // Route the request:
-    //  - explicit Image model, or a text-to-image phrase (with no uploaded image) => generate
-    //  - otherwise chat/vision. If images are attached but the model can't see,
-    //    transparently use a vision model for this turn.
-    const isImageGen =
-      selectedModelMeta.kind === 'Image' ||
-      (!hasImages && isImageGenerationRequest(requestContent));
+    //  - AI intent classifier or explicit Image model => generate image with 1000-word master prompt
+    //  - otherwise chat/vision.
+    const isImageGen = await evaluateImageIntent(
+      requestContent,
+      selectedModel,
+      abortControllerRef.current?.signal,
+    );
 
     let effectiveModelId = selectedModel;
     if (!isImageGen && hasImages && !isVisionCapableModel(selectedModel)) {
@@ -469,12 +470,10 @@ export default function Chat() {
         const rawPrompt = trimmedContent || 'a beautiful, highly detailed artistic image';
 
         // Which model actually renders the image: the selected model if it's an
-        // Image model, otherwise our default renderer (FLUX). A Chat model that
-        // triggered a text-to-image request "calls" the image tool this way.
+        // Image model, otherwise our default renderer (FLUX).
         const renderModelId = isImageModel(selectedModel) ? selectedModel : DEFAULT_IMAGE_MODEL;
 
-        // The prompt is crafted BY a chat model (ChatGPT-style). If the user is
-        // on an Image model, use the default chat model to write the prompt.
+        // The 1000-word master prompt is crafted BY the chat model (ChatGPT-style).
         const promptAuthorModel = isImageModel(selectedModel) ? DEFAULT_CHAT_MODEL_ID : selectedModel;
         const imagePrompt = await craftImagePrompt(
           rawPrompt,
@@ -530,17 +529,23 @@ export default function Chat() {
           }
         }
 
-        if (!hasImages && shouldWebSearch(requestContent)) {
-          setIsSearching(true);
+        if (!hasImages) {
           try {
-            const search = await webSearch(requestContent, abortControllerRef.current.signal);
-            const context = buildSearchContext(search);
-            if (context) {
-              messagesForModel.splice(messagesForModel.length - 1, 0, { role: 'system', content: context });
+            const searchEval = await evaluateSmartWebSearch(
+              requestContent,
+              selectedModel,
+              abortControllerRef.current?.signal,
+            );
+            if (searchEval.shouldSearch && searchEval.searchQuery) {
+              setIsSearching(true);
+              const search = await webSearch(searchEval.searchQuery, abortControllerRef.current?.signal);
+              const context = buildSearchContext(search);
+              if (context) {
+                messagesForModel.splice(messagesForModel.length - 1, 0, { role: 'system', content: context });
+              }
             }
           } catch (err) {
             if (err instanceof Error && err.name === 'AbortError') throw err;
-            // Non-fatal: fall back to answering without web grounding.
           } finally {
             setIsSearching(false);
           }
@@ -579,11 +584,47 @@ export default function Chat() {
               prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: liveContent } : m)),
             );
           };
-          if (usedVisionFallback) {
-            await generateVisionResponse(messagesForModel, handleDelta, abortControllerRef.current!.signal);
+
+          if (hasImages) {
+            // Step 1: Run Vision Engine (Mistral Pixtral 12B by default) to extract raw visual breakdown
+            let rawVisionOutput = '';
+            await generateVisionResponse(
+              messagesForModel,
+              (delta) => { rawVisionOutput += delta; },
+              abortControllerRef.current!.signal,
+            );
+
+            // Step 2: Pass raw vision output directly into Chat Model for final synthesis & refinement
+            const refinedChatMessages: AiChatMessage[] = [
+              {
+                role: 'system',
+                content: [
+                  Flyer_SYSTEM_PROMPT,
+                  '',
+                  '=== INTERNAL VISION ENGINE ANALYSIS ===',
+                  'Our internal vision engine analyzed the user\'s uploaded image(s)/file(s) and produced this detailed visual breakdown:',
+                  '---',
+                  rawVisionOutput,
+                  '---',
+                  '',
+                  'TASK FOR FLYER:',
+                  'Synthesize and refine the raw visual breakdown above. Address the user\'s specific request with maximum accuracy, clarity, structure, and depth. Provide the absolute best result as requested by the user, formatted cleanly with headers, bullet points, bold key terms, and code blocks where applicable.',
+                ].join('\n'),
+              },
+              ...historyMessages,
+              { role: 'user', content: requestContent },
+            ];
+
+            await generateChatResponse(
+              refinedChatMessages,
+              selectedModel,
+              handleDelta,
+              abortControllerRef.current!.signal,
+            );
           } else {
             await generateChatResponse(messagesForModel, effectiveModelId, handleDelta, abortControllerRef.current!.signal);
           }
+
           return sanitizeAssistantText(fullContent);
         };
 
@@ -791,14 +832,21 @@ export default function Chat() {
 
           <div className="relative flex items-center gap-3 flex-shrink-0">
             {/* Arena Mode Toggle */}
-            <div className="hidden md:flex items-center gap-1.5 bg-secondary/40 border border-border/30 rounded-xl p-1.5 backdrop-blur-md">
+            <div className="flex items-center gap-1.5 bg-secondary/40 border border-border/30 rounded-xl p-1 backdrop-blur-md">
               <button
                 onClick={() => setIsArenaMode(!isArenaMode)}
-                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 ${isArenaMode ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_12px_hsla(var(--primary)/0.3)]' : 'hover:bg-secondary/80 text-foreground/70'}`}
-                title="AI Fiesta: Side-by-side comparison"
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
+                  isArenaMode
+                    ? 'bg-gradient-to-r from-primary/25 via-accent/20 to-primary/25 text-primary border border-primary/40 shadow-[0_0_16px_hsla(var(--primary)/0.35)]'
+                    : 'hover:bg-secondary/80 text-foreground/70'
+                }`}
+                title="AI Arena: Compare models side-by-side"
               >
                 <span className="text-sm">⚔️</span>
-                ARENA
+                <span>ARENA MODE</span>
+                {isArenaMode && (
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                )}
               </button>
             </div>
 
@@ -827,7 +875,7 @@ export default function Chat() {
               <AnimatePresence>
                 {isArenaMode && compareModels.map((mId, idx) => (
                   <motion.div key={`compare-${idx}`} initial={{ opacity: 0, width: 0, scale: 0.8 }} animate={{ opacity: 1, width: 'auto', scale: 1 }} exit={{ opacity: 0, width: 0, scale: 0.8 }} transition={{ duration: 0.3 }} className="flex items-center gap-2 overflow-hidden">
-                    <span className="text-muted-foreground/40 text-xs font-bold uppercase tracking-wider">VS</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 text-primary border border-primary/30 shadow-sm flex-shrink-0">VS</span>
                     <ModelSelector 
                       selectedModel={mId} 
                       onSelectModel={(newId) => {
