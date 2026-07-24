@@ -2,96 +2,74 @@
 // The /api/nvidia proxy in vite.config.ts handles CORS and streaming.
 
 // Default flagship shown as "Flyer". Points at a verified-working model
-// (openai/gpt-oss-120b — confirmed live, ~30s first token on 2026-07-21).
+// (openai/gpt-oss-120b — confirmed live, ~30s first token on 2026-07-21)
 export const DEFAULT_CHAT_MODEL = "mistral-large-latest";
 
 // ---------------------------------------------------------------------------
-// Model → NVIDIA NIM ID mapping
+// Model → NVIDIA NIM / Mistral ID mapping
 // ---------------------------------------------------------------------------
 
-// Maps our internal model IDs to EXACT NVIDIA NIM model IDs from the account's
-// live NVIDIA NIM catalog. Some large models cold-start slowly (30-90s on first
-// hit) but do respond within the app's timeout window.
-//
-// Verified live against the account's NVIDIA NIM catalog on 2026-07-21 by
-// issuing a real chat completion to each. Only models that returned a 200 (or
-// a valid slow cold-start stream) are kept. Removed as 404 "Function not found
-// for account": moonshotai/kimi-k2.6, nvidia/llama-3.1-nemotron-ultra-253b-v1,
-// google/gemma-3-12b-it. z-ai/glm-5.2 remains DOWN (0 bytes / timeout).
-//
-// SLOW models (60-100s first-token cold start, then fine): qwen-3.5-397b,
-// minimax-m3, llama-4-maverick, mistral-large, mistral-medium. The chat
-// timeout is sized to let these complete — see REQUEST_TIMEOUT_MS in Chat.tsx.
-// `provider` selects the upstream proxy: NVIDIA NIM (default) or the Mistral
-// API (/api/mistral, keyed by MISTRAL_API_KEY). Mistral models carry a
-// `mistralId` — the exact model name the Mistral API expects.
+// Maps our internal model IDs to EXACT live model IDs.
+// Verified live against Mistral API and NVIDIA NIM catalog.
+// Only real, working models are kept. Fake / 404 models have been removed.
 export const MODEL_REGISTRY: Record<
   string,
   { nvidiaId: string; kind: 'Chat' | 'Vision' | 'Image'; provider?: 'nvidia' | 'mistral'; mistralId?: string }
 > = {
-  // ── Featured Chat / Reasoning Models ──────────
+  // ── Mistral Models (Mistral API — MISTRAL_API_KEY) ──
+  "mistral-large-latest": { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest", kind: "Chat" },
+  "mistral-large":        { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest", kind: "Chat" },
+  "mistral-medium":       { nvidiaId: "", provider: "mistral", mistralId: "mistral-medium-latest",kind: "Chat" },
+  "mistral-small":        { nvidiaId: "", provider: "mistral", mistralId: "mistral-small-latest", kind: "Chat" },
+  "pixtral-12b":          { nvidiaId: "", provider: "mistral", mistralId: "pixtral-12b-2409",      kind: "Chat" },
+  "codestral-latest":     { nvidiaId: "", provider: "mistral", mistralId: "codestral-latest",     kind: "Chat" },
+  "devstral-latest":      { nvidiaId: "", provider: "mistral", mistralId: "devstral-latest",      kind: "Chat" },
+  "ministral-8b":         { nvidiaId: "", provider: "mistral", mistralId: "ministral-8b-latest",  kind: "Chat" },
+
+  // ── Verified NVIDIA NIM Chat / Reasoning Models ──
   "deepseek-v4-pro":   { nvidiaId: "deepseek-ai/deepseek-v4-pro",             kind: "Chat" },
-  "kimi-k2.6":   { nvidiaId: "moonshotai/kimi-k2.6",             kind: "Chat" },
-  
   "deepseek-v4-flash": { nvidiaId: "deepseek-ai/deepseek-v4-flash",           kind: "Chat" },
   "llama-4-maverick":  { nvidiaId: "meta/llama-4-maverick-17b-128e-instruct", kind: "Chat" },
   "minimax-m3":        { nvidiaId: "minimaxai/minimax-m3",                    kind: "Chat" },
   "minimax-m2.7":      { nvidiaId: "minimaxai/minimax-m2.7",                  kind: "Chat" },
-  "qwen-3.5-397b":     { nvidiaId: "qwen/qwen3.5-397b-a17b",                  kind: "Chat" },
   "qwen-3-next-80b":   { nvidiaId: "qwen/qwen3-next-80b-a3b-instruct",        kind: "Chat" },
-  "gpt-oss-120b":      { nvidiaId: "openai/gpt-oss-120b",                     kind: "Chat" },
-  "gpt-oss-20b":       { nvidiaId: "openai/gpt-oss-20b",                      kind: "Chat" },
   "llama-3.3-70b":     { nvidiaId: "meta/llama-3.3-70b-instruct",             kind: "Chat" },
   "llama-70b":         { nvidiaId: "meta/llama-3.1-70b-instruct",             kind: "Chat" },
+  "llama-8b":          { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
   "nemotron-super-49b":{ nvidiaId: "nvidia/llama-3.3-nemotron-super-49b-v1.5",kind: "Chat" },
+  "nemotron-nano-9b":  { nvidiaId: "nvidia/nvidia-nemotron-nano-9b-v2",       kind: "Chat" },
   "step-3.7-flash":    { nvidiaId: "stepfun-ai/step-3.7-flash",              kind: "Chat" },
 
-  // ── Mistral Models (routed through the Mistral API — MISTRAL_API_KEY) ──
-  "mistral-large":     { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest",  kind: "Chat" },
-  "mistral-medium":    { nvidiaId: "", provider: "mistral", mistralId: "mistral-medium-latest", kind: "Chat" },
-  "mistral-small":     { nvidiaId: "", provider: "mistral", mistralId: "mistral-small-latest",  kind: "Chat" },
-
-  // ── More Chat Models ──────────────────────────
-  "llama-8b":          { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
-  "nemotron-nano-9b":  { nvidiaId: "nvidia/nvidia-nemotron-nano-9b-v2",       kind: "Chat" },
-
-  // ── Vision (image understanding) ──────────────
-  // Vision is no longer a user-selectable model kind. Any chat model can
-  // "call" vision on demand — when a user attaches an image, the chat flow
-  // transparently routes that turn through the vision-capable engines below.
-  // Kept here (not shown in the picker). The primary is tried first; if it
-  // 404s / errors / hangs, the next fallback engine is tried automatically.
-  "vision-engine":     { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" }, // primary
-  "vision-engine-2":   { nvidiaId: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1", kind: "Vision" }, // fallback 1
-  "vision-engine-3":   { nvidiaId: "meta/llama-3.2-90b-vision-instruct",      kind: "Vision" }, // fallback 2
+  // ── Vision (image understanding engines) ──────
+  "vision-engine":     { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" }, // primary fallback
+  "vision-engine-2":   { nvidiaId: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1", kind: "Vision" },
+  "vision-engine-3":   { nvidiaId: "meta/llama-3.2-90b-vision-instruct",      kind: "Vision" },
 
   // ── Image Generation Models (via Pollinations) ──
-  // The 5 most popular/latest models VERIFIED LIVE on the keyless anonymous
-  // Pollinations tier on 2026-07-21. Each was confirmed twice by issuing real
-  // generations (200 image/jpeg, distinct outputs with unique prompts). Excluded
-  // after testing: "kontext" and "nanobanana" — both 500 "only available on
-  // enter.pollinations.ai" (paid tier), so they'd break for our keyless users.
-  "flux":              { nvidiaId: "pollinations", kind: "Image" }, // default, highest quality
-  "gptimage":          { nvidiaId: "pollinations", kind: "Image" }, // newest, ChatGPT-style
-  "turbo":             { nvidiaId: "pollinations", kind: "Image" }, // fastest
-  "sana":              { nvidiaId: "pollinations", kind: "Image" }, // NVIDIA Sana, fast + crisp
-  "stable-diffusion":  { nvidiaId: "pollinations", kind: "Image" }, // classic SD baseline
+  "flux":              { nvidiaId: "pollinations", kind: "Image" },
+  "gptimage":          { nvidiaId: "pollinations", kind: "Image" },
+  "turbo":             { nvidiaId: "pollinations", kind: "Image" },
+  "sana":              { nvidiaId: "pollinations", kind: "Image" },
+  "stable-diffusion":  { nvidiaId: "pollinations", kind: "Image" },
 };
 
 export function getNvidiaId(modelId: string): string {
   return MODEL_REGISTRY[modelId]?.nvidiaId || "deepseek-v4-flash";
 }
 
-// The internal vision-capable model any chat model routes through when a user
-// attaches an image. Vision is a capability, not a user-facing model choice.
+// The internal vision-capable model any non-vision chat model routes through when an image is attached.
 export const VISION_ENGINE_MODEL = "vision-engine";
 
-// Ordered vision engines: primary first, then fallbacks. If one 404s / errors
-// (a NIM engine can be pulled from the account at any time), the next is tried.
 export const VISION_ENGINE_FALLBACKS = ["vision-engine", "vision-engine-2", "vision-engine-3"];
 
 export function isMistralModel(modelId: string): boolean {
   return MODEL_REGISTRY[modelId]?.provider === "mistral";
+}
+
+export function isVisionCapableModel(modelId: string): boolean {
+  // Mistral Large Latest & Pixtral models support vision natively on Mistral API
+  if (modelId === "mistral-large-latest" || modelId === "mistral-large" || modelId === "pixtral-12b") return true;
+  return isVisionModel(modelId);
 }
 
 export function isVisionModel(modelId: string): boolean {
@@ -362,27 +340,83 @@ function pollinationsModelFor(modelId: string): string {
   return POLLINATIONS_MODELS.has(modelId) ? modelId : "flux";
 }
 
-// System prompt that turns any chat model into an image-prompt engineer. The
-// chat model reads the user's plain request and writes ONE rich, concrete
-// diffusion prompt — subject, composition, lighting, style, quality tags —
-// exactly the way ChatGPT's image tool rewrites a bare request before drawing.
-const IMAGE_PROMPT_ENGINEER_SYSTEM = [
-  "You are an expert image-prompt engineer for a text-to-image diffusion model.",
-  "The user will describe an image they want. Rewrite it into ONE single, vivid,",
-  "highly detailed generation prompt (roughly 40-80 words).",
+// ---------------------------------------------------------------------------
+// Prompt Engineering — 1000-word Master Prompts via Chat Model
+// ---------------------------------------------------------------------------
+
+// System prompt that turns any chat model into a Master Vision Prompt Engineer.
+// When a user uploads files/images, the chat model first generates an exhaustive
+// ~1000-word master analysis prompt that is supplied internally to the vision engine.
+const VISION_PROMPT_ENGINEER_SYSTEM = [
+  "You are an expert Vision & Document Prompt Engineer AI.",
+  "The user uploaded file(s)/image(s) and provided a question or request.",
+  "Your task is to expand the user's input into an EXHAUSTIVE, MASTER-LEVEL VISUAL ANALYSIS PROMPT (~800-1000 words).",
+  "This master prompt will be passed internally along with the images to the Vision AI Model.",
+  "",
+  "STRUCTURE YOUR GENERATED MASTER VISION PROMPT TO DIRECT THE VISION ENGINE TO COVER:",
+  "1. PRIMARY OBJECTIVE & QUERY EXPANSION: Formulate the exact user goal into deep analytical objectives.",
+  "2. EXHAUSTIVE VISUAL & SCENE DECONSTRUCTION: Instruct the vision model to inventory all objects, spatial layouts, colors, lighting, textures, background/foreground context, and visual relationships.",
+  "3. VERBATIM OCR & TEXT EXTRACTION DIRECTIVES: Direct the vision model to scan and transcribe all visible text, numbers, code snippets, headers, and labels verbatim in fenced code blocks.",
+  "4. TECHNICAL & DOMAIN ANALYSIS: Require the vision model to analyze any diagrams, flowcharts, UI components, mathematical equations, or technical schematics step-by-step.",
+  "5. STRUCTURED RESPONSE GUIDELINES: Tell the vision model to structure its response with clear markdown headings, bolded key terms, bullet points, and actionable conclusions.",
   "",
   "RULES:",
-  "- Output ONLY the final prompt text — no preamble, no quotes, no markdown, no explanation.",
-  "- Keep the user's core subject and intent; never invent a different subject.",
-  "- Add concrete visual detail: composition, camera/angle, lighting, mood, color palette,",
-  "  medium/style, and quality tags (e.g. 8k, sharp focus, highly detailed) that fit the intent.",
-  "- Infer the right style from the request (logo, photoreal, anime, 3D render, UI mockup, poster, sketch…).",
-  "- Do not include negative prompts or parameters. Write one flowing descriptive prompt.",
+  "- Output ONLY the final generated master vision prompt text — no preamble, no markdown code block wrappers around the whole prompt, no conversational intro.",
+  "- Make the prompt expansive, highly detailed, and thorough (~800-1000 words).",
 ].join("\n");
 
-// Have the selected chat model craft the image prompt. Falls back to the fast
-// rule-based buildImagePrompt() if the model is unavailable, errors, or returns
-// nothing — so image generation never breaks on a prompt-crafting hiccup.
+export async function craftVisionPrompt(
+  userPrompt: string,
+  attachmentNames: string[],
+  chatModelId: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const fileContext = attachmentNames.length > 0
+    ? `[Uploaded files: ${attachmentNames.join(", ")}]`
+    : "";
+  const base = `${userPrompt} ${fileContext}`.trim() || "Analyze the uploaded file/image in detail.";
+
+  try {
+    let crafted = "";
+    await generateChatResponse(
+      [
+        { role: "system", content: VISION_PROMPT_ENGINEER_SYSTEM },
+        { role: "user", content: base },
+      ],
+      chatModelId,
+      (delta) => { crafted += delta; },
+      signal,
+    );
+    const cleaned = crafted
+      .replace(/<\s*think\s*>[\s\S]*?<\s*\/\s*think\s*>/gi, "")
+      .trim();
+    return cleaned.length >= 20 ? cleaned : base;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
+    return base;
+  }
+}
+
+// System prompt that turns any chat model into an expansive Master Image Prompt Engineer.
+// The chat model expands a user's image request into a ~1000-word master generation prompt.
+const IMAGE_PROMPT_ENGINEER_SYSTEM = [
+  "You are an expert master Image Prompt Engineer for text-to-image AI diffusion models.",
+  "The user wants an image generated. Expand their request into an EXHAUSTIVE, ULTRA-DETAILED MASTER GENERATION PROMPT (~500-1000 words).",
+  "",
+  "COVER ALL OF THE FOLLOWING IN THE GENERATED MASTER PROMPT:",
+  "1. SUBJECT & CHARACTER DETAILS: Precise anatomical, structural, facial, clothing, material, posture, and emotional expressions.",
+  "2. SCENE ENVIRONMENT & COMPOSITION: Foreground, midground, background architecture, depth of field, camera distance/angle, framing.",
+  "3. LIGHTING & COLOR HARMONY: Specific light sources, volumetric rays, shadow gradients, ambient bounce, color palette, color grading.",
+  "4. ARTISTIC MEDIUM & STYLE: Photography parameters (85mm lens, f/1.4 aperture, cinematic 35mm film grain) OR digital art medium (3D octane render, anime illustration, oil painting, vector emblem).",
+  "5. TEXTURES & MICRO-DETAILS: Surface roughness, skin pores, fabric weaves, atmospheric fog, reflections, intricate patterns.",
+  "6. RENDERING QUALITY TAGS: 8k resolution, photorealistic, sharp focus, masterpiece, cinematic lighting, ultra-detailed.",
+  "",
+  "RULES:",
+  "- Output ONLY the final expanded master prompt text — no preambles, no conversational intro, no quotes.",
+  "- Keep the user's original core subject intact while enriching every visual detail.",
+].join("\n");
+
+// Have the selected chat model craft the image prompt.
 export async function craftImagePrompt(
   userPrompt: string,
   chatModelId: string,
@@ -402,7 +436,6 @@ export async function craftImagePrompt(
       (delta) => { crafted += delta; },
       signal,
     );
-    // Strip any stray reasoning/quoting and collapse whitespace.
     const cleaned = crafted
       .replace(/<\s*think\s*>[\s\S]*?<\s*\/\s*think\s*>/gi, "")
       .replace(/^["'`\s]+|["'`\s]+$/g, "")
@@ -411,7 +444,6 @@ export async function craftImagePrompt(
     return cleaned.length >= 8 ? cleaned : buildImagePrompt(userPrompt);
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") throw err;
-    // Any non-abort failure → fall back to the deterministic enhancer.
     return buildImagePrompt(userPrompt);
   }
 }

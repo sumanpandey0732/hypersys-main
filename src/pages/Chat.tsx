@@ -6,7 +6,7 @@ import ChatMessage from '@/components/chat/ChatMessage';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
 import WelcomeScreen from '@/components/chat/WelcomeScreen';
-import { generateChatResponse, generateVisionResponse, generateImageResponse, craftImagePrompt, isVisionModel, isImageModel, VISION_ENGINE_MODEL, type ChatMessage as AiChatMessage } from '@/lib/ai';
+import { generateChatResponse, generateVisionResponse, generateImageResponse, craftImagePrompt, craftVisionPrompt, isVisionModel, isVisionCapableModel, isImageModel, VISION_ENGINE_MODEL, type ChatMessage as AiChatMessage, type ContentPart } from '@/lib/ai';
 import { shouldWebSearch, webSearch, buildSearchContext } from '@/lib/search';
 import type { ChatAttachment } from '@/components/chat/types';
 import { Menu, Sparkles } from 'lucide-react';
@@ -51,7 +51,7 @@ const DEFAULT_VISION_MODEL = VISION_ENGINE_MODEL;
 // and the chat model used to author an image prompt when the user is on an
 // Image model (so the prompt is always written by a chat model).
 const DEFAULT_IMAGE_MODEL = 'flux';
-const DEFAULT_CHAT_MODEL_ID = 'deepseek-v4-flash';
+const DEFAULT_CHAT_MODEL_ID = 'mistral-large-latest';
 
 // Brand persona — makes the assistant identify as Flyer (ChatGPT-style feel)
 // rather than leaking the underlying model provider. Injected as the first
@@ -192,7 +192,7 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [selectedModel, setSelectedModel] = useState('gpt-oss-120b');
+  const [selectedModel, setSelectedModel] = useState('mistral-large-latest');
   
   // Arena Mode state
   const [isArenaMode, setIsArenaMode] = useState(false);
@@ -309,7 +309,7 @@ export default function Chat() {
       const activeConv = conversations.find(c => c.id === activeConversationId);
       if (activeConv?.modelId) {
         const isKnown = AI_MODELS.some(m => m.id === activeConv.modelId);
-        setSelectedModel(isKnown ? activeConv.modelId : 'gpt-oss-120b');
+        setSelectedModel(isKnown ? activeConv.modelId : 'mistral-large-latest');
       }
     }
   }, [activeConversationId, conversations]);
@@ -390,7 +390,7 @@ export default function Chat() {
       (!hasImages && isImageGenerationRequest(requestContent));
 
     let effectiveModelId = selectedModel;
-    if (!isImageGen && hasImages && !isVisionModel(selectedModel)) {
+    if (!isImageGen && hasImages && !isVisionCapableModel(selectedModel)) {
       effectiveModelId = DEFAULT_VISION_MODEL;
     }
     const usedVisionFallback = effectiveModelId !== selectedModel;
@@ -402,7 +402,7 @@ export default function Chat() {
     // when the effective model can accept images).
     const historyMessages: AiChatMessage[] = messages.map((message) => ({ role: message.role, content: message.content }));
     const currentTurn: AiChatMessage =
-      hasImages && isVisionModel(effectiveModelId)
+      hasImages && isVisionCapableModel(effectiveModelId)
         ? {
             role: 'user',
             content: [
@@ -411,9 +411,9 @@ export default function Chat() {
             ],
           }
         : { role: 'user', content: requestContent };
-    const usesVision = hasImages && isVisionModel(effectiveModelId);
+    const usesVision = hasImages && isVisionCapableModel(effectiveModelId);
     const allMessages: AiChatMessage[] = [
-      { role: 'system', content: usesVision ? VISION_SYSTEM_PROMPT : Flyer_SYSTEM_PROMPT },
+      { role: 'system', content: hasImages ? VISION_SYSTEM_PROMPT : Flyer_SYSTEM_PROMPT },
       ...historyMessages,
       currentTurn,
     ];
@@ -502,9 +502,34 @@ export default function Chat() {
       } else {
         let fullContent = '';
 
-        // Ground time-sensitive / factual questions with live web results.
-        // Skipped for image uploads (vision) since those are about the image.
         const messagesForModel = [...allMessages];
+
+        // When images/files are uploaded, use the Chat model first to craft a 1000-word
+        // master vision analysis prompt to supply internally to the vision engine.
+        if (hasImages) {
+          try {
+            const masterVisionPrompt = await craftVisionPrompt(
+              requestContent,
+              pendingAttachments.map((a) => a.name),
+              selectedModel,
+              abortControllerRef.current.signal,
+            );
+            const lastIdx = messagesForModel.length - 1;
+            if (lastIdx >= 0 && typeof messagesForModel[lastIdx].content !== 'string') {
+              const contentArray = messagesForModel[lastIdx].content as ContentPart[];
+              messagesForModel[lastIdx] = {
+                role: 'user',
+                content: [
+                  { type: 'text', text: masterVisionPrompt },
+                  ...contentArray.filter((part) => part.type === 'image_url'),
+                ],
+              };
+            }
+          } catch (e) {
+            console.warn('Vision master prompt crafting fallback:', e);
+          }
+        }
+
         if (!hasImages && shouldWebSearch(requestContent)) {
           setIsSearching(true);
           try {
@@ -554,10 +579,7 @@ export default function Chat() {
               prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: liveContent } : m)),
             );
           };
-          // Image-analysis turns run through the vision engine chain, which
-          // auto-falls-back across engines if one is down. Everything else is a
-          // normal chat completion.
-          if (usesVision) {
+          if (usedVisionFallback) {
             await generateVisionResponse(messagesForModel, handleDelta, abortControllerRef.current!.signal);
           } else {
             await generateChatResponse(messagesForModel, effectiveModelId, handleDelta, abortControllerRef.current!.signal);

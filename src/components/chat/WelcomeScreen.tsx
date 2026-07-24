@@ -150,33 +150,7 @@ export default function WelcomeScreen({ onSuggestionClick ,
           ))}
         </motion.div>
 
-        {/* Suggestion Cards */}
-        <motion.div 
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-xl mx-auto px-4"
-          variants={itemVariants}
-        >
-          {[
-            { title: "Explain Quantum Physics", prompt: "Explain quantum computing in simple terms with a real-life analogy.", icon: "🧬", color: "from-teal-500/10 to-emerald-500/5", border: "hover:border-teal-500/30" },
-            { title: "Generate Artwork", prompt: "Generate a cyberpunk artwork: a futuristic neon city street at midnight, high resolution, detailed lighting", icon: "🎨", color: "from-pink-500/10 to-purple-500/5", border: "hover:border-pink-500/30" },
-            { title: "Compare AI Models", prompt: "What are the core differences between GPT-4, Claude, and Gemini?", icon: "🧠", color: "from-blue-500/10 to-indigo-500/5", border: "hover:border-blue-500/30" },
-            { title: "Write a Story", prompt: "Write a suspenseful sci-fi short story about a time traveller visiting the year 2099.", icon: "✏️", color: "from-amber-500/10 to-orange-500/5", border: "hover:border-amber-500/30" },
-          ].map((item) => (
-            <motion.button
-              key={item.title}
-              onClick={() => onSuggestionClick(item.prompt)}
-              className={`flex flex-col items-start p-4 rounded-2xl ${item.border} text-left transition-all duration-300 backdrop-blur-md group relative overflow-hidden liquid-suggestion`}
-              whileHover={{ y: -4, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000`} />
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-lg">{item.icon}</span>
-                <h3 className="font-semibold text-sm text-foreground/90 group-hover:text-primary transition-colors">{item.title}</h3>
-              </div>
-              <p className="text-xs text-muted-foreground/80 line-clamp-2 leading-relaxed">{item.prompt}</p>
-            </motion.button>
-          ))}
-        </motion.div>
+        
 
         {/* Call to action - Focus on input */}
         <motion.div
