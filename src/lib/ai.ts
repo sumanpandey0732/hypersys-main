@@ -17,7 +17,8 @@ export const MODEL_REGISTRY: Record<
   { nvidiaId: string; kind: 'Chat' | 'Vision' | 'Image'; provider?: 'nvidia' | 'mistral'; mistralId?: string }
 > = {
   // ── Mistral Models (Mistral API — MISTRAL_API_KEY) ──
-  "Flyer AI": { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest", kind: "Chat" },
+  "Flyer AI":             { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest", kind: "Chat" },
+  "mistral-large-latest": { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest", kind: "Chat" },
   "mistral-large":        { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest", kind: "Chat" },
   "mistral-medium":       { nvidiaId: "", provider: "mistral", mistralId: "mistral-medium-latest",kind: "Chat" },
   "mistral-small":        { nvidiaId: "", provider: "mistral", mistralId: "mistral-small-latest", kind: "Chat" },
@@ -27,23 +28,23 @@ export const MODEL_REGISTRY: Record<
   "ministral-8b":         { nvidiaId: "", provider: "mistral", mistralId: "ministral-8b-latest",  kind: "Chat" },
 
   // ── Verified NVIDIA NIM Chat / Reasoning Models ──
-  "deepseek-v4-pro":   { nvidiaId: "deepseek-ai/deepseek-v4-pro",             kind: "Chat" },
-  "deepseek-v4-flash": { nvidiaId: "deepseek-ai/deepseek-v4-flash",           kind: "Chat" },
-  "llama-4-maverick":  { nvidiaId: "meta/llama-4-maverick-17b-128e-instruct", kind: "Chat" },
-  "minimax-m3":        { nvidiaId: "minimaxai/minimax-m3",                    kind: "Chat" },
-  "minimax-m2.7":      { nvidiaId: "minimaxai/minimax-m2.7",                  kind: "Chat" },
-  "qwen-3-next-80b":   { nvidiaId: "qwen/qwen3-next-80b-a3b-instruct",        kind: "Chat" },
+  "deepseek-v4-pro":   { nvidiaId: "deepseek-ai/deepseek-r1",                 kind: "Chat" },
+  "deepseek-v4-flash": { nvidiaId: "deepseek-ai/deepseek-r1",                 kind: "Chat" },
+  "llama-4-maverick":  { nvidiaId: "meta/llama-3.3-70b-instruct",             kind: "Chat" },
+  "minimax-m3":        { nvidiaId: "meta/llama-3.3-70b-instruct",             kind: "Chat" },
+  "minimax-m2.7":      { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
+  "qwen-3-next-80b":   { nvidiaId: "qwen/qwen2.5-72b-instruct",               kind: "Chat" },
   "llama-3.3-70b":     { nvidiaId: "meta/llama-3.3-70b-instruct",             kind: "Chat" },
   "llama-70b":         { nvidiaId: "meta/llama-3.1-70b-instruct",             kind: "Chat" },
   "llama-8b":          { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
-  "nemotron-super-49b":{ nvidiaId: "nvidia/llama-3.3-nemotron-super-49b-v1.5",kind: "Chat" },
-  "nemotron-nano-9b":  { nvidiaId: "nvidia/nvidia-nemotron-nano-9b-v2",       kind: "Chat" },
-  "step-3.7-flash":    { nvidiaId: "stepfun-ai/step-3.7-flash",              kind: "Chat" },
+  "nemotron-super-49b":{ nvidiaId: "nvidia/llama-3.3-nemotron-70b-instruct",  kind: "Chat" },
+  "nemotron-nano-9b":  { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
+  "step-3.7-flash":    { nvidiaId: "meta/llama-3.1-8b-instruct",              kind: "Chat" },
 
   // ── Vision (image understanding engines) ──────
-  "vision-engine":     { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" }, // primary fallback
-  "vision-engine-2":   { nvidiaId: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1", kind: "Vision" },
-  "vision-engine-3":   { nvidiaId: "meta/llama-3.2-90b-vision-instruct",      kind: "Vision" },
+  "vision-engine":     { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" },
+  "vision-engine-2":   { nvidiaId: "meta/llama-3.2-90b-vision-instruct",      kind: "Vision" },
+  "vision-engine-3":   { nvidiaId: "meta/llama-3.2-11b-vision-instruct",      kind: "Vision" },
 
   // ── Image Generation Models (via Pollinations) ──
   "flux":              { nvidiaId: "pollinations", kind: "Image" },
@@ -54,7 +55,7 @@ export const MODEL_REGISTRY: Record<
 };
 
 export function getNvidiaId(modelId: string): string {
-  return MODEL_REGISTRY[modelId]?.nvidiaId || "deepseek-v4-flash";
+  return MODEL_REGISTRY[modelId]?.nvidiaId || "meta/llama-3.1-8b-instruct";
 }
 
 // The internal vision-capable model any non-vision chat model routes through when an image is attached.
@@ -64,6 +65,18 @@ export const VISION_ENGINE_MODEL = "pixtral-12b";
 export const VISION_ENGINE_FALLBACKS = ["pixtral-12b", "mistral-large-latest", "vision-engine", "vision-engine-2", "vision-engine-3"];
 
 export function isMistralModel(modelId: string): boolean {
+  if (!modelId) return true;
+  const lower = modelId.toLowerCase();
+  if (
+    lower.includes("mistral") ||
+    lower.includes("pixtral") ||
+    lower.includes("codestral") ||
+    lower.includes("devstral") ||
+    lower.includes("flyer") ||
+    modelId === "Flyer AI"
+  ) {
+    return true;
+  }
   return MODEL_REGISTRY[modelId]?.provider === "mistral";
 }
 
