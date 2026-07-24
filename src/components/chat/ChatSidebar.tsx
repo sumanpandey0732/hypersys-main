@@ -24,7 +24,7 @@ export interface AIModel {
 // hang — were removed so the picker never offers a model that fails to fetch.
 export const AI_MODELS: AIModel[] = [
   // ── Featured Chat / Reasoning Models ──────────
-  { id: 'mistral-large-latest', name: 'Mistral Large Latest', label: 'Mistral Large', description: 'Fast flagship chat & vision (Default - Mistral API)', emoji: '🧬', kind: 'Chat', featured: true },
+  { id: 'mistral-large-latest', name: 'Flyer AI', label: 'Mistral Large', description: 'Fast flagship chat & vision (Default - Mistral API)', emoji: '🧬', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', label: 'DeepSeek V4', description: 'DeepSeek flagship reasoning (NVIDIA NIM)', emoji: '🧠', kind: 'Chat', featured: true },
   { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', label: 'DeepSeek V4 Flash', description: 'Fast DeepSeek V4 reasoning (NVIDIA NIM)', emoji: '⚡', kind: 'Chat', featured: true },
   { id: 'llama-4-maverick', name: 'Llama 4 Maverick', label: 'Llama 4', description: 'Meta Llama 4 128-expert MoE (NVIDIA NIM)', emoji: '🦅', kind: 'Chat', featured: true },

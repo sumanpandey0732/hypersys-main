@@ -17,7 +17,7 @@ export const MODEL_REGISTRY: Record<
   { nvidiaId: string; kind: 'Chat' | 'Vision' | 'Image'; provider?: 'nvidia' | 'mistral'; mistralId?: string }
 > = {
   // ── Mistral Models (Mistral API — MISTRAL_API_KEY) ──
-  "mistral-large-latest": { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest", kind: "Chat" },
+  "Flyer AI": { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest", kind: "Chat" },
   "mistral-large":        { nvidiaId: "", provider: "mistral", mistralId: "mistral-large-latest", kind: "Chat" },
   "mistral-medium":       { nvidiaId: "", provider: "mistral", mistralId: "mistral-medium-latest",kind: "Chat" },
   "mistral-small":        { nvidiaId: "", provider: "mistral", mistralId: "mistral-small-latest", kind: "Chat" },

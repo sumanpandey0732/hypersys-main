@@ -152,9 +152,46 @@ export default function WelcomeScreen({ onSuggestionClick ,
 
         
 
+        {/* Interactive Prompt Suggestions */}
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 px-2 text-left"
+          variants={itemVariants}
+        >
+          {[
+            { emoji: "🎨", title: "Generate an Image", prompt: "Generate a futuristic cyberpunk city in neon rain with photorealistic 8k detail", tag: "Image AI" },
+            { emoji: "💻", title: "Write & Debug Code", prompt: "Write a high-performance Python script to analyze data with clean docstrings and error handling", tag: "Code Specialist" },
+            { emoji: "🌐", title: "Search Live News", prompt: "What are the latest AI news developments and breakthroughs today?", tag: "Real-time Web" },
+            { emoji: "🧠", title: "Deep Concepts", prompt: "Explain quantum computing and qubit entanglement simply with a real-world analogy", tag: "Reasoning" },
+          ].map((item, idx) => (
+            <motion.button
+              key={item.title}
+              onClick={() => onSuggestionClick(item.prompt)}
+              className="group flex flex-col justify-between p-4 rounded-2xl border border-border/40 bg-secondary/20 hover:bg-secondary/50 hover:border-primary/40 transition-all duration-300 backdrop-blur-sm text-left relative overflow-hidden shadow-sm"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 + idx * 0.08 }}
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-2xl">{item.emoji}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-primary/80 bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5">
+                  {item.tag}
+                </span>
+              </div>
+              <h3 className="text-sm font-semibold text-foreground/90 group-hover:text-primary transition-colors mb-1">
+                {item.title}
+              </h3>
+              <p className="text-xs text-muted-foreground/60 line-clamp-2 leading-relaxed">
+                "{item.prompt}"
+              </p>
+            </motion.button>
+          ))}
+        </motion.div>
+
         {/* Call to action - Focus on input */}
         <motion.div
-          className="mt-10"
+          className="mt-6"
           variants={itemVariants}
         >
           <motion.div
@@ -169,7 +206,7 @@ export default function WelcomeScreen({ onSuggestionClick ,
               animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }}
               transition={{ duration: 1.5, repeat: Infinity }}
             />
-            <span className="text-xs sm:text-sm text-primary font-semibold">Multi-model AI · online</span>
+            <span className="text-xs sm:text-sm text-primary font-semibold">Multi-model AI · Online & Ready</span>
           </motion.div>
         </motion.div>
       </motion.div>
