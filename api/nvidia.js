@@ -26,7 +26,8 @@ export default async function handler(req, res) {
     return;
   }
 
-  const upstream = await fetch(NVIDIA_URL, {
+  const requestedModel = model || "meta/llama-3.3-70b-instruct";
+  let upstream = await fetch(NVIDIA_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -34,7 +35,7 @@ export default async function handler(req, res) {
       Accept: "text/event-stream",
     },
     body: JSON.stringify({
-      model: model || "openai/gpt-oss-120b",
+      model: requestedModel,
       messages,
       stream: true,
       temperature: temperature ?? 0.7,
@@ -42,6 +43,26 @@ export default async function handler(req, res) {
       max_tokens: max_tokens ?? 2048,
     }),
   });
+
+  if (upstream.status === 404 && requestedModel !== "meta/llama-3.1-8b-instruct") {
+    console.log("NVIDIA 404 for model:", requestedModel, "--> retrying with meta/llama-3.1-8b-instruct");
+    upstream = await fetch(NVIDIA_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({
+        model: "meta/llama-3.1-8b-instruct",
+        messages,
+        stream: true,
+        temperature: temperature ?? 0.7,
+        top_p: top_p ?? 0.95,
+        max_tokens: max_tokens ?? 2048,
+      }),
+    });
+  }
 
   if (!upstream.ok || !upstream.body) {
     const text = await upstream.text().catch(() => "");

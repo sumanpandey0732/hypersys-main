@@ -618,3 +618,42 @@ export async function generateImageResponse(
     ? lastErr
     : new Error("Image generation is temporarily unavailable. Please try again.");
 }
+
+/**
+ * Smart Short Title Generator for Chat Conversations (ChatGPT-style).
+ * Generates a concise 2 to 4 word summary title for the chat.
+ */
+export async function generateSmartChatTitle(
+  firstMessage: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const text = (firstMessage || "").trim();
+  if (!text || text.length < 3) return "New Chat";
+
+  try {
+    const prompt: ChatMessage[] = [
+      {
+        role: "system",
+        content:
+          "You are an AI Title Generator. Generate a concise, clear 2 to 4 word summary title for the user's chat prompt. Output ONLY the short title text. Do NOT use quotation marks, punctuation, or words like 'Title:'. Keep it under 35 characters.",
+      },
+      { role: "user", content: text },
+    ];
+
+    const titleResponse = await getCompleteChatResponse(
+      prompt,
+      "ministral-8b",
+      signal,
+    );
+
+    const cleaned = titleResponse
+      .replace(/["'`]/g, "")
+      .replace(/^title:\s*/i, "")
+      .replace(/\n+/g, " ")
+      .trim();
+
+    return cleaned.length >= 2 && cleaned.length <= 45 ? cleaned : text.slice(0, 30);
+  } catch {
+    return text.slice(0, 30);
+  }
+}

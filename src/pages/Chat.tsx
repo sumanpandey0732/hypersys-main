@@ -6,7 +6,7 @@ import ChatMessage from '@/components/chat/ChatMessage';
 import ChatInput from '@/components/chat/ChatInput';
 import ModelSelector from '@/components/chat/ModelSelector';
 import WelcomeScreen from '@/components/chat/WelcomeScreen';
-import { generateChatResponse, generateVisionResponse, generateImageResponse, craftImagePrompt, craftVisionPrompt, evaluateImageIntent, isVisionModel, isVisionCapableModel, isImageModel, VISION_ENGINE_MODEL, type ChatMessage as AiChatMessage, type ContentPart } from '@/lib/ai';
+import { generateChatResponse, generateVisionResponse, generateImageResponse, craftImagePrompt, craftVisionPrompt, evaluateImageIntent, generateSmartChatTitle, isVisionModel, isVisionCapableModel, isImageModel, VISION_ENGINE_MODEL, type ChatMessage as AiChatMessage, type ContentPart } from '@/lib/ai';
 import { evaluateSmartWebSearch, webSearch, buildSearchContext } from '@/lib/search';
 import type { ChatAttachment } from '@/components/chat/types';
 import { Menu, Sparkles } from 'lucide-react';
@@ -427,7 +427,8 @@ export default function Chat() {
 
     if (!convId && isAuthenticated) {
       isNewConversationRef.current = true;
-      convId = await createConversation(trimmedContent || pendingAttachments[0]?.name || 'New chat');
+      const initialTitle = (trimmedContent || pendingAttachments[0]?.name || 'New chat').slice(0, 30);
+      convId = await createConversation(initialTitle);
       if (!convId) {
         isNewConversationRef.current = false;
         // Revert messages on UI if creation failed
@@ -435,6 +436,17 @@ export default function Chat() {
         return;
       }
       setActiveConversationId(convId);
+
+      // Asynchronously generate a smart, concise 2-4 word title (like ChatGPT)
+      const currentConvId = convId;
+      generateSmartChatTitle(trimmedContent || requestContent).then((smartTitle) => {
+        if (smartTitle && currentConvId) {
+          firestoreDb.updateConversationTitle(currentConvId, smartTitle).catch(() => {});
+          setConversations((prev) =>
+            prev.map((c) => (c.id === currentConvId ? { ...c, title: smartTitle } : c)),
+          );
+        }
+      });
     }
 
     if (convId && isAuthenticated) {
@@ -909,7 +921,7 @@ export default function Chat() {
         </header>
 
         {/* Messages */}
-        <div ref={scrollContainerRef} className="relative z-10 flex-1 overflow-y-auto scrollbar-thin min-h-0" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
+        <div ref={scrollContainerRef} className="relative z-10 flex-1 overflow-y-auto scrollbar-thin min-h-0 overflow-anchor-none scroll-smooth" style={{ overscrollBehaviorY: 'none', overscrollBehaviorX: 'none', overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
           <AnimatePresence mode="wait">
             {isMessagesLoading ? (
               <div key="loading-messages" className="flex flex-col items-center justify-center h-full min-h-[50dvh]">

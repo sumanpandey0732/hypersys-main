@@ -168,5 +168,13 @@ export const firestoreDb = {
   // Update the active model on a conversation
   async updateConversationModel(conversationId: string, modelId: string): Promise<void> {
     await updateDoc(doc(db, 'conversations', conversationId), { modelId });
+  },
+
+  // Update the title of a conversation
+  async updateConversationTitle(conversationId: string, title: string): Promise<void> {
+    await updateDoc(doc(db, 'conversations', conversationId), {
+      title: title.slice(0, 60),
+      updatedAt: serverTimestamp(),
+    });
   }
 };
